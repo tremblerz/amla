@@ -1,0 +1,105 @@
+{
+"parameters": {
+        "arch_name":"nac-run-test",
+        "mode":"oneshot",
+        "algorithm": "deterministic",
+        "gpus":"[]",
+        "steps" : 100,
+        "eval_interval" : 20,
+        "batch_size" : 50,
+        "dataset":"cifar10",
+        "data_dir":"/data/",
+        "train_dir":"/train/",
+        "iterations" : 5,
+        "image_size" : 28,
+        "log_stats": true
+},
+"init_cell": {
+    "Layer0": {"Branch0": {"block": "conv2d", "kernel_size": [1, 1], "outputs": 128}},
+    "Layer2": {"Branch0": {"block": "lrn" }}
+},
+"classification_cell": {
+    "Layer0": {"Branch0": {"block": "reduce_mean", "size": [1, 2]}},
+    "Layer1": {"Branch0": {"block": "flatten", "size": [3, 3]}},
+    "Layer2": {"Branch0": {"block": "dropout", "keep_prob": 0.8}},
+    "Layer3": {"Branch0": {"block": "fc-final", "inputs": 192, "outputs": 10}}
+},
+"arch":
+[
+    {
+        "filters": {
+            "Branch2": "3x3"
+        },
+        "outputs": 128
+    },
+    {
+        "filters": {
+            "Branch1": "1x1"
+        },
+        "outputs": 128
+    },
+    {
+        "filters": {
+            "Branch1": "1x1"
+        },
+        "outputs": 128
+    },
+    {
+        "widener": {}
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch2": "3x3",
+            "Branch6": "7x7sep"
+        },
+        "outputs": 256
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch2": "3x3"
+        },
+        "outputs": 256
+    },
+    {
+        "widener": {}
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch4": "5x5"
+        },
+        "outputs": 512
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch2": "3x3",
+            "Branch4": "5x5"
+        },
+        "outputs": 512
+    },
+    {
+        "widener": {}
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch4": "5x5",
+            "Branch5": "5x5sep",
+            "Branch6": "7x7sep"
+        },
+        "outputs": 1024
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch2": "3x3",
+            "Branch4": "5x5"
+        },
+        "outputs": 1024
+    }
+]
+
+}

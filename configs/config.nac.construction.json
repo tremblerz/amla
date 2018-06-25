@@ -1,0 +1,44 @@
+{
+"parameters": {
+        "arch_name":"nac-cons",
+        "exec":"localhost",
+        "mode":"construct",
+        "algorithm": "envelopenet",
+        "gpus":"[]",
+        "steps" : 10000,
+        "eval_interval" : 1000,
+        "batch_size" : 50,
+        "dataset":"cifar10",
+        "data_dir":"/data/",
+        "iterations" : 5,
+        "image_size" : 28,
+        "log_stats": true
+},
+"envelopenet":{ "stages": 4,
+        "layers_per_stage": [10,1,1,1],
+        "max_layers_per_stage": [15,5,3,3],
+        "construction": [true, true, true, true],
+        "parameter_limits": [false, false, false, false],
+        "max_filter_prune":6,
+        "envelopecell": {
+            "Branch1": "1x1",
+            "Branch2": "3x3",
+            "Branch3": "3x3sep",
+            "Branch4": "5x5",
+            "Branch5": "5x5sep",
+            "Branch6": "7x7sep"
+        },
+        "skip": false,
+        "worst_case": false
+},
+"init_cell": {
+    "Layer0": {"Branch0": {"block": "conv2d", "kernel_size": [1, 1], "outputs": 128}},
+    "Layer2": {"Branch0": {"block": "lrn" }}
+},
+"classification_cell": {
+    "Layer0": {"Branch0": {"block": "reduce_mean", "size": [1, 2]}},
+    "Layer1": {"Branch0": {"block": "flatten", "size": [3, 3]}},
+    "Layer2": {"Branch0": {"block": "dropout", "keep_prob": 0.8}},
+    "Layer3": {"Branch0": {"block": "fc-final", "inputs": 192, "outputs": 10}}
+}
+}

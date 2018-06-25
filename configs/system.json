@@ -1,0 +1,8 @@
+{
+    "persistent": "filesystem",
+    "services" : ["scheduler", "train", "evaluate", "generate"],
+    "exes" : { "scheduler": "scheduler.py", "train": "train_eval/tf/train.py", "evaluate": "train_eval/tf/evaluate.py", "generate": "generate/generate.py"},
+    "exec": { "scheduler": "process", "train": "process", "evaluate": "process", "generate": "process" },
+    "host": { "scheduler": "localhost", "train": "localhost", "evaluate": "localhost" },
+    "port": { "scheduler": 5000, "train": "",  "evaluate": "", "generate": "" }
+}

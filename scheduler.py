@@ -1,0 +1,262 @@
+#Copyright 2018 Cisco Systems All Rights Reserved
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
+""" AMLA Scheduler service
+"""
+
+import os
+import json
+#import argparse
+from flask import Flask, request
+
+from common.task import Task
+from common.schedule import Schedule
+#from train.tf import Train
+#from generate import Generate
+
+class Scheduler(Task):
+    """AMLA Scheduler
+    Maintains a task list (schedule of tasks to be run)
+    Implements interface to add/delete/update/read tasks
+    Starts and stops tasks 
+    """
+    def __init__(self):
+        self.name = 'scheduler'
+        self.base_dir = os.path.dirname(os.path.realpath(__file__))
+        super().__init__(self.base_dir)
+        self.data_dir = self.base_dir + "/data/"
+        self.app = app
+        self.stop = False
+        self.schedule = Schedule()
+        self.task_config_key = None
+        self.task_config = None
+
+    def __del__(self):
+        pass
+
+    def stop_scheduler(self):
+        """Stop all tasks currently being scheduled"""
+        for service in self.services:
+            if service == self.name:
+                continue
+            self.terminate_process(service)
+
+    def add_task(self, task):
+        """Add task to schedule"""
+        task = self.schedule.add(task)
+        return task
+
+    def delete_task(self, task):
+        """Delete task from schedule"""
+        self.schedule.delete(task)
+
+    def get_tasks(self):
+        """Get a list of all tasks in schedule"""
+        tasks = self.schedule.get_all()
+        return json.dumps(tasks)
+
+    def start_task(self, task):
+        """Start an AMLA task
+        An AMLA task consists of train, evaluate and generate subtasks
+        The task is specified through the task config file.
+        """
+        #Mode: oneshot, construct, test
+        #Alg: deterministic, random, envelopenet
+        #TODO: Make thread safe
+        task = self.schedule.get(task)
+        self.task_config_key = task['config']
+        self.task_config = self.read(self.task_config_key)
+        if self.task_config == None:
+            print("Check config file and attempt again")
+            return
+        self.arch_name = self.task_config["parameters"]["arch_name"]
+        mode = self.task_config["parameters"]["mode"]
+        #algorithm = self.task_config["parameters"]["algorithm"]
+        steps = self.task_config["parameters"]["steps"]
+        #batch_size = self.task_config["parameters"]["batch_size"]
+        #dataset = self.task_config["parameters"]["dataset"]
+        iterations = self.task_config["parameters"]["iterations"]
+        eval_interval = self.task_config["parameters"]["eval_interval"]
+
+        task['state'] = 'running'
+        self.schedule.update(task)
+        i = 0
+        while not self.stop:
+            if i > int(iterations):
+                break
+            if mode == "construct":
+                self.generate(i)
+            for step in range(int(eval_interval), int(steps), int(eval_interval)):
+                if step == int(eval_interval):
+                    self.train(step, redirect='>', iteration=i)
+                    if self.stop:
+                        break
+                    self.eval(redirect='>', iteration=i)
+                else:
+                    self.train(step, redirect='>>', iteration=i)
+                    if self.stop:
+                        break
+                    self.eval(redirect='>>', iteration=i)
+            if mode == "oneshot":
+                break
+            i+=1
+        task['state'] = 'complete'
+        self.schedule.update(task)
+        return 0
+
+    def stop_task(self, task):
+        #TODO
+        self.stop = True
+        return 0
+
+    def generate(self, iteration):
+        """Start the Generate subtask
+        The Generate subtask generates a new network, using results from
+        previous iteration of train/evaluate
+        """
+        if self.sys_config['exec']['generate'] == "service":
+            pass
+        elif self.sys_config['exec']['generate'] == "library":
+            print("Error: Train and generate libraries not supported yet")
+            print("Set the mode to service in the system.json file ")
+            exit()
+            #generate = Generate(self.base_dir, self.task_config_key)
+            #generate.run()
+        elif self.sys_config['exec']['generate'] == "process":
+            args =  [ '--base_dir='+ self.base_dir, \
+                '--config='+ self.task_config_key, \
+                '--iteration='+ str(iteration)]
+            print ("Starting generation. Iteration: "+str(iteration))
+            self.exec_process('generate/nac_en_cnn/generate.py', args) 
+            print ("Completed generation. Iteration: "+str(iteration))
+        elif self.sys_config['exec']['eval'] == "deployer":
+            pass
+        else:
+            print("Error: Invalid execution mode specified in configuration")
+            print("Should be either library, process, service, or deployer")
+            exit(-1)
+
+    def train(self, steps, redirect='>>',iteration=0):
+        """Start the Train subtask
+        The Train subtask trains a network generated by the Generate subtask
+        """
+
+        #Use the config generated by the last iteration of generate
+        mode = self.task_config["parameters"]["mode"]
+        if mode == "construct":
+            config_key = "results/"+self.arch_name+"/"+str(iteration)+"/config/config.json"
+        else: 
+            config_key = self.task_config_key
+        if self.sys_config['exec']['train'] == "service":
+            print("Error: Train and generate services not supported yet")
+            print("Set the mode to process in the system.json file ")
+            exit()
+        elif self.sys_config['exec']['train'] == "library":
+            print("Error: Train and generate libraries not supported yet")
+            print("Set the mode to process in the system.json file ")
+            exit()
+            #train = Train(self.base_dir, config_key)
+            #train.run()
+        elif self.sys_config['exec']['train'] == "process":
+            #TODO: Fix the result write method
+            #Pass results file as arg to train
+            #Fix tf results write
+            print ("Training in progress. Iteration: "+str(iteration))
+            results_key="results/"+self.arch_name+"/"+str(iteration)+"/results/results.train.log"
+            self.write(results_key, {})
+            results_file = self.base_dir+"/results/"+self.arch_name+"/"+str(iteration)+"/results/results.log"
+            self.exec_process('train', ['--config='+\
+                config_key, '--base_dir='+self.base_dir,\
+                '--iteration='+ str(iteration),
+                '--max_steps='+str(steps), "2"+redirect+results_key])
+        elif self.sys_config['exec']['train'] == "deployer":
+            #TODO: Kubeflow
+            pass
+        else:
+            print("Error: Invalid execution mode specified in configuration")
+            print("Should be either library, process, service, or deployer")
+            exit(-1)
+
+    def eval(self, redirect='>>', iteration=0):
+        """Start the Evaluate subtask
+        The Evaluate subtask evaulates a network trained by the Train subtask
+        """
+        mode = self.task_config["parameters"]["mode"]
+        if mode == "construct":
+            config_key = "results/"+self.arch_name+"/"+str(iteration)+"/config/config.json"
+        else: 
+            config_key = self.task_config_key
+        if self.sys_config['exec']['evaluate'] == "service":
+            pass
+        elif self.sys_config['exec']['evaluate'] == "library":
+            pass
+        elif self.sys_config['exec']['evaluate'] == "process":
+            print ("Evaluation in progress. Iteration: "+str(iteration))
+            results_key="results/"+self.arch_name+"/"+str(iteration)+"/results/results.eval.log"
+            self.exec_process('evaluate', ['--config='+\
+                config_key, '--base_dir='+self.base_dir,\
+                '--iteration='+ str(iteration), \
+                "2"+redirect+results_key])
+        elif self.sys_config['exec']['evaluate'] == "deployer":
+            #TODO: Kubeflow
+            pass
+        else:
+            print("Error: Invalid execution mode specified in configuration")
+            print("Should be either library, process, service or deployer")
+            exit(-1)
+
+app = Flask("scheduler")
+@app.route('/api/v1.0/tasks/add', methods=['POST'])
+def add_task():
+    #global sched
+    config = json.loads(request.data)
+    return json.dumps(sched.add_task(config))
+
+@app.route('/api/v1.0/tasks/delete', methods=['POST'])
+def delete_task():
+    #global sched
+    task = json.loads(request.data)
+    sched.delete_task(task)
+    return json.dumps({"result": "OK"})
+
+@app.route('/api/v1.0/tasks/get', methods=['GET'])
+def get_tasks():
+    #global sched
+    return json.dumps(sched.get_tasks())
+
+@app.route('/api/v1.0/tasks/start', methods=['POST'])
+def start_task():
+    #global sched
+    task = json.loads(request.data)
+    result = sched.start_thread(start_task, task)
+    return json.dumps({"result": str(result)})
+
+@app.route('/api/v1.0/tasks/stop', methods=['POST'])
+def stop_task():
+    #global sched
+    task = json.loads(request.data)
+    result = sched.stop_task(task)
+    return json.dumps({"result": str(result)})
+
+@app.route('/api/v1.0/scheduler/stop', methods=['GET'])
+def stop_scheduler():
+    #global sched
+    result = sched.stop_scheduler()
+    return json.dumps({"result": str(result)})
+
+if __name__ == '__main__':
+    #parser = argparse.ArgumentParser()
+    #parser.add_argument('--base_dir', help='Base directory')
+    #args = parser.parse_args()
+    sched = Scheduler()
+    sched.run()

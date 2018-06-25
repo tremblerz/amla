@@ -1,0 +1,6 @@
+*.pyc
+*.log
+*.tgz
+*.swp
+__pycache__
+results
