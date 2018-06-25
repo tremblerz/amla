@@ -4,26 +4,20 @@ AMLA is a framework for implementing and deploying AutoML algorithms for Neural 
 
 ## Introduction
 
-AMLA is a common framework to run different AutoML 
-algorithms for neural networks without changing 
-the underlying systems needed to configure, train and evaluate the generated networks.
-This has two benefits:
+AMLA is a common framework to run different AutoML algorithms for neural networks without changing 
+the underlying systems needed to configure, train and evaluate the generated networks. This has two benefits:
 * It ensures that different AutoML algorithms can be easily compared
 using the same set of hyperparameters and infrastructure, allowing for 
 easy evaluation, comparison and ablation studies of AutoML algorithms.
 * It provides a easy way to deploy AutoML algorithms on multi-cloud infrastructure.
 
-With a framework, we can manage the lifecycle of autoML easily. Without this,  
-hyperparameters and architecture design are spread out, 
-some embedded in the code, others in config files and other as command line parameters,
-making it hard to compare two algorithms or perform ablation studies.
+With a framework, we can manage the lifecycle of autoML easily. Without this, hyperparameters and architecture design are spread out, some embedded in the code, others in config files and other as command line parameters, making it hard to compare two algorithms or perform ablation studies.
 
-Some of our design goals:
+Some design principles of AMLA:
 * The network generation process is decoupled from the training/evaluation process.
 * The network specification model is independent of the implementation of the training/evaluation/generation code and ML library (i.e. whether it uses TensorFlow/PyTorch etc.).
 
-AMLA currently supports the [NAC using EnvelopeNets](http://arxiv.org/pdf/1803.06744) AutoML algorithm, and we are actively adding newer algorithms to the framework.  
-More information on AutoML algorithms for Neural Networks can be found [here](https://github.com/hibayesian/awesome-automl-papers)
+AMLA currently supports the [NAC using EnvelopeNets](http://arxiv.org/pdf/1803.06744) AutoML algorithm, and we are actively adding newer algorithms to the framework. More information on AutoML algorithms for Neural Networks can be found [here](https://github.com/hibayesian/awesome-automl-papers)
 
 ## Architectural overview
 
@@ -37,9 +31,7 @@ When run in single host mode (the default), the system consists of
 
 A more detailed description of the current architecture is available [here](./docs/design/arch.md)
 
-The current branch is limited to operation on a single host i.e. the CLI, scheduler, generation, training and evaluation all run on a single host.
-The scheduler may be run as a service or a library, while the generate/train and evaluate subtasks are run as processes.
-A distributed system that allows concurrent execution of multiple training/evaluation tasks and distributed training on a pod of machines is under development.
+The current branch is limited to operation on a single host i.e. the CLI, scheduler, generation, training and evaluation all run on a single host. The scheduler may be run as a service or a library, while the generate/train and evaluate subtasks are run as processes. A distributed system that allows concurrent execution of multiple training/evaluation tasks and distributed training on a pod of machines is under development.
 
 ## Contributing
 
