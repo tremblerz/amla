@@ -20,6 +20,14 @@ the proposal
 
 * If a proposal does not exist, please consider authoring a proposal. 
 Proposals should be reasonably well written, but do not need to be perfect.
+Cover at least the following:
+    * Definition: What the feature is
+    * Problem/Motivation: Why the feature is needed
+    * Solution: What the feature will do
+    * Design: How the feature will be implemented, why is this the chosen method, other possible ways to implement
+    * Plan: When the feature development will start and how long it will take
+
+[Here](./docs/proposals/scaleout/pkamath-paralleltrain.md) is an example of a proposal.
 Once your proposal is in reasonable shape, send us a pull request for the proposal and update the issue with your proposal.
 Proposals will be discussed by the community. 
 If there are multiple proposals in a single area, the proposals will reviewed and, depending on feedback, may be merged into a single final proposal:  proposals/<area>/proposal-final-<proposal-name>.md
