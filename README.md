@@ -4,29 +4,30 @@ AMLA is a framework for implementing and deploying AutoML algorithms for Neural 
 
 ## Introduction
 
-The design goal of AMLA is a common framework where different AutoML 
-algorithms for neural networks can be run without changing 
+AMLA is a common framework to run different AutoML 
+algorithms for neural networks without changing 
 the underlying systems needed to configure, train and evaluate the generated networks.
-This provides two benefits:
+This has two benefits:
 * It ensures that different AutoML algorithms can be easily compared
 using the same set of hyperparameters and infrastructure, allowing for 
 easy evaluation, comparison and ablation studies of AutoML algorithms.
-* It provides a easy way to deploy AutoML algorithms on a bare metal infrastructure.
+* It provides a easy way to deploy AutoML algorithms on multi-cloud infrastructure.
 
-Without such a framework, hyperparameters and architecture design are spread out, 
+With a framework, we can manage the lifecycle of autoML easily. Without this,  
+hyperparameters and architecture design are spread out, 
 some embedded in the code, others in config files and other as command line parameters,
 making it hard to compare two algorithms or perform ablation studies.
 
-Two explicit decisions have been made to achieve the design goal:
+Some of our design goals:
 * The network generation process is decoupled from the training/evaluation process.
 * The network specification model is independent of the implementation of the training/evaluation/generation code and ML library (i.e. whether it uses TensorFlow/PyTorch etc.).
 
-AMLA currently supports the [NAC using EnvelopeNets](http://arxiv.org/pdf/1803.06744) AutoML algorithm and we are actively adding newer algorithms to the framework.
+AMLA currently supports the [NAC using EnvelopeNets](http://arxiv.org/pdf/1803.06744) AutoML algorithm, and we are actively adding newer algorithms to the framework.  
 More information on AutoML algorithms for Neural Networks can be found [here](https://github.com/hibayesian/awesome-automl-papers)
 
 ## Architectural overview
 
-In AMLA an AutoML algorithm is run as a task and is specified through a configuration file. 
+In AMLA, an AutoML algorithm is run as a task and is specified through a configuration file. 
 Sample configuration files may be found [here](./configs) and are described [here](./docs/config)
 
 When run in single host mode (the default), the system consists of 
@@ -42,7 +43,7 @@ A distributed system that allows concurrent execution of multiple training/evalu
 
 ## Contributing
 
-At this point AMLA is very much a work in progress. 
+At this point, AMLA is in its early stages. 
 There are several areas in which development is yet to start or that are under development.
 If you would like to contribute to AMLA's development, please send in pull requests, feature requests or submit proposals.
 [Here](./CONTRIBUTING.md) is how to contribute.
@@ -111,7 +112,7 @@ Added task: {'taskid': 3, 'state': 'init', 'config': 'configs/config.run.test.js
 ```
 
 ## Authors
-* Utham Kamath utham@sigfind.com
+* Utham Kamath pukamath@cisco.com
 * Abhishek Singh abhishs8@cisco.com
 * Debo Dutta dedutta@cisco.com
 
