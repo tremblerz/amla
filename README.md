@@ -67,7 +67,7 @@ http://aws.amazon.com/blogs/machine-learning/get-started-with-deep-learning-usin
 ```
 ### Run the CLI
 ```
-    cd amla
+    cd amla/amla
     python amla.py
 ```
 
