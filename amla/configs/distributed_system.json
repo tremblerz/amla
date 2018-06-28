@@ -1,0 +1,16 @@
+{
+    "persistent": "filesystem",
+    "services" : ["scheduler", "train", "evaluate", "generate"],
+    "exes" : { "scheduler": "scheduler.py", "train": "train_eval/tf/train.py", "evaluate": "train_eval/tf/evaluate.py", "generate": "generate/generate.py"},
+    "exec": { "scheduler": "process", "train": "process", "evaluate": "process", "generate": "process" },
+    "host": { "scheduler": "localhost", "train": "localhost", "evaluate": "localhost" },
+    "port": { "scheduler": 5000, "train": "",  "evaluate": "", "generate": "" },
+    "cluster": { "type":"ps", "index":0,
+                 "train": {"ps":["ps-train-1.com:2222"],
+                           "workers":["worker-train-1.com:2222"]},
+                 "evaluate": {"ps":["ps-eval-1.com:2222"],
+                              "workers":["worker-eval-1.com:2222"]},
+                 "generate": {"ps":["ps-gen-1.com:2222"],
+                              "workers":["worker-gen-1.com:2222"]}
+    }
+}

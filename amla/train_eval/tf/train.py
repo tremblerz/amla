@@ -58,6 +58,22 @@ class Train(Task):
         self.base_dir = base_dir
         self.max_steps = int(max_steps)
         self.iteration = int(iteration)
+        self.dist_training =  "cluster" in self.sys_config.keys()
+
+        if self.dist_training:
+            self.server_type = self.sys_config["cluster"]["type"]
+
+            ps_hosts = self.sys_config["cluster"]["train"]["ps"]
+            worker_hosts = self.sys_config["cluster"]["train"]["workers"]
+            cluster = cluster = tf.train.ClusterSpec(
+                    {"ps": ps_hosts, "worker": worker_hosts})
+
+            self.node_index = self.sys_config["cluster"]["index"]
+
+            self.server = tf.train.Server(cluster,
+                    job_name = self.server_type,
+                    task_index = self.node_index)
+
         self.get_task_params()
 
     def __del__(self):
@@ -210,6 +226,33 @@ class Train(Task):
                     tf.get_default_graph(),
                     options=tf.profiler.ProfileOptionBuilder() .with_max_depth(1) .select(
                         ['float_ops']).build())
+
+            elif self.dist_training:
+                if self.server_type == "ps":
+                    self.server.join()
+                elif self.server_type == "worker":
+                    with tf.train.MonitoredTrainingSession(
+                        master=self.server.target,
+                        is_chief=(self.node_index == 0),
+                        checkpoint_dir=self.train_dir,
+                        hooks=[tf.train.StopAtStepHook(last_step=self.max_steps),
+                               tf.train.NanTensorHook(loss),
+                               _LoggerHook()],
+                        save_checkpoint_secs=300,
+                        save_summaries_steps=100,
+                        config=tf.ConfigProto(
+                            log_device_placement=self.log_device_placement)) as mon_sess:
+
+                        ckpt = tf.train.get_checkpoint_state(self.train_dir)
+                        if ckpt and ckpt.model_checkpoint_path:
+                            print("Restoring existing model")
+                            saver.restore(mon_sess, ckpt.model_checkpoint_path)
+
+                        while not mon_sess.should_stop():
+                            mon_sess.run(train_op)
+                else:
+                    print("Unknown server specification")
+                    exit()
 
             else:
                 with tf.train.MonitoredTrainingSession(

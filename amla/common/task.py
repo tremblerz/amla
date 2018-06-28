@@ -36,7 +36,8 @@ class Task:
     __metaclass__ = ABCMeta
     def __init__(self, base_dir):
         self.base_dir = base_dir
-        self.sys_config_key = "configs/system.json"
+        #self.sys_config_key = "configs/system.json"
+        self.sys_config_key = "configs/distributed_system.json"
         self.get_sys_config()
         self.store = Store(base_dir, self.sys_config)
         self.comm = Comm(self.sys_config)
