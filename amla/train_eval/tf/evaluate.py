@@ -151,7 +151,7 @@ class Evaluate(Task):
             coord.join(threads, stop_grace_period_secs=10)
 
     def evaluate(self, network):
-        """Eval CIFAR-10 for a number of steps."""
+        """Eval a network for a number of steps."""
         with tf.Graph().as_default() as grph:
             # Get images and labels for CIFAR-10.
             eval_data = True
