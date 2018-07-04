@@ -69,9 +69,7 @@ class Task:
         In either case the class' main function gets called
         """
         if self.sys_config['exec'][self.name] == "service":
-            self.host = self.sys_config['host'][self.name]
-            self.port = self.sys_config['port'][self.name]
-            self.app.run(host=self.host, port=self.port)
+            self.main()
         elif self.sys_config['exec'][self.name] == "library":
             self.main()
         elif self.sys_config['exec'][self.name] == "process":
@@ -81,10 +79,12 @@ class Task:
             print("Should be either module, runtocompletion or service")
             exit(-1)
 
-    def start_thread(self, func, data):
+    def start_thread(self, func, data=None):
         """Start a thread within this task
         """
-        sdata = json.dumps(data)
+        sdata=None
+        if data:
+                sdata = json.dumps(data)
         thread = threading.Thread(target=func, args=[sdata])
         self.threads.append(thread)
         thread.start()
@@ -106,7 +106,7 @@ class Task:
         cmd = "python " + self.base_dir + "/" + name + " " + sargs
         os.system(cmd)
 
-    def exec_process_async(self, process, args):
+    def exec_process_async(self, process, args=None):
         """Fork a new process to run a new task, non blocking
         """
         if process in self.sys_config['exes']:
@@ -118,7 +118,7 @@ class Task:
         cmd = ["python", self.base_dir + "/"+name] +sargs
         self.children[process] = Popen(cmd)
 
-    def terminate_process(self, process):
+    def terminate_service(self, process):
         """Terminate a running task
         """
         #Todo: Send SIGTERM and wait. Send SIGKILL if child does not terminate

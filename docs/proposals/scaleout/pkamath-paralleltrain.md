@@ -7,7 +7,7 @@ parallel on multiple nodes.
 Some AutoML algorithms (e.g. Neuro Evolution) generate several candidate 
 networks after one iteration. These networks need to be trained and 
 evaluated and the best performing network has to be identified. Parallel 
-execution of triaing of different networks reduces the tiem to find the 
+execution of training of different networks reduces the time to find the 
 best network.
 
 ##Solution
@@ -18,10 +18,12 @@ Parallel training feature will be implemented as follows:
 
  * To run an AutoML algorithm, with parallel training, the CLI/FE will add 
 a generate task to the database (directly or via a scheduler). The task 
-information will indicate that algorithm needs parallel training.
+information will indicate that algorithm needs parallel training. The database
+can be any SQL database  (to support concurrent read and writes to the schedule by 
+multiple schedulers on ). The first version will use mysql
 
  * One free scheduler (the first to acquire the task from the database)
- will pull the task from the database and start a generator.
+ will pull the first task from the database and start a generator.
 
  * The generator will generate multiple networks and generate one config 
  for each network. It will make a REST call to the scheduler to indicate 

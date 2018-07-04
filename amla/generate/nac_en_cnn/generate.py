@@ -26,13 +26,13 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--base_dir', help='Base directory')
 parser.add_argument('--config', help='Configuration file key')
-parser.add_argument('--iteration', help='Current iteration index')
-parser.add_argument(
-    '--lastconfig',
-    help='Configuration file key from previous iteration')
-parser.add_argument(
-    '--lastresults',
-    help='Results file key from previous iteration')
+parser.add_argument('--task', help='Task information')
+#parser.add_argument(
+#    '--lastconfig',
+#    help='Configuration file key from previous iteration')
+#parser.add_argument(
+#    '--lastresults',
+#    help='Results file key from previous iteration')
 args = parser.parse_args()
 sys.path.insert(0, args.base_dir)
 from common.task import Task
@@ -44,13 +44,14 @@ class Generate(Task):
     - Random network generation
     """
 
-    def __init__(self, base_dir, config, iteration):
+    def __init__(self, base_dir, config, task):
         super().__init__(base_dir)
         self.name = 'generate'
         self.arch = []
         self.task_config_key = config
         self.task_config = self.read(config)
-        self.iteration = int(iteration)
+        self.task = json.loads(task)
+        self.iteration = self.task['iteration']
         self.base_dir = base_dir
         self.get_task_params()
 
@@ -93,10 +94,14 @@ class Generate(Task):
         config = copy.deepcopy(self.task_config)
         config["arch"] = arch
         config["parameters"]["algorithm"] = "deterministic"
-        config["parameters"]["mode"] = "oneshot"
+        config["parameters"]["mode"] = "train"
         del config["envelopenet"]
         key = "results/" + self.arch_name + "/" + str(self.iteration) \
-            + "/config/config.json"
+            + "/train/config/config.json"
+        self.write(key, config)
+        config["parameters"]["mode"] = "evaluate"
+        key = "results/" + self.arch_name + "/" + str(self.iteration) \
+            + "/evaluate/config/config.json"
         self.write(key, config)
 
     def main(self):
@@ -107,12 +112,37 @@ class Generate(Task):
         else:
             prev_iteration = self.iteration - 1
             prev_arch_key = "results/" + self.arch_name + "/" + \
-                str(prev_iteration) + "/config/config.json"
+                str(prev_iteration) + "/train/config/config.json"
             prev_results_key = "results/" + self.arch_name + \
-                "/" + str(prev_iteration) + "/results/results.train.log"
+                "/" + str(prev_iteration) + "/train/results.train.log"
             prev_arch = self.read(prev_arch_key)["arch"]
             arch = self.construct(prev_arch, prev_results_key)
             self.save_config(arch)
+        if self.sys_config['exec']['scheduler'] == "service":
+             self.put_results()
+
+    def put_results(self):
+        task = self.task
+        task["op"] =  "POST"
+        if self.iteration == self.task_config["parameters"]["iterations"]:
+            task['state'] == "complete"
+        else:
+            new_tasks = []
+            newtask = {"task_id": "", "config":  "results/" + \
+                self.arch_name + "/" + str(self.iteration) + \
+                "/train/config/config.json"}
+            new_tasks.append(newtask)
+
+            #Two tasks for testing
+            #Remove
+            newtask = {"task_id": "", "config":  "results/" + \
+                self.arch_name + "/" + str(self.iteration) + \
+                "/evaluate/config/config.json"}
+            #new_tasks.append(newtask)
+
+            task['state'] = "waiting"
+            task['new_tasks'] = new_tasks
+            self.send_request("scheduler", "tasks/update", task)
 
     def generate(self):
         """ Generate a network arch based on network config params: Used for
@@ -129,8 +159,8 @@ class Generate(Task):
             exit(-1)
 
     def construct(self, arch, samples):
-        """ Construct a new network based on current arch, metrics from last run and
-        construction config params
+        """ Construct a new network based on current arch, metrics from last 
+        run and construction config params
         """
         self.arch = arch
         if self.algorithm == "envelopenet":
@@ -491,6 +521,6 @@ class Generate(Task):
 if __name__ == '__main__':
     base_dir = args.base_dir
     config = args.config
-    iteration = args.iteration
-    g = Generate(base_dir, config, iteration)
+    task = args.task
+    g = Generate(base_dir, config, task)
     g.run()

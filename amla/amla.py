@@ -57,11 +57,10 @@ class AmlaCLI(cmd.Cmd):
         print(self.amla.get_tasks(arg))
     def do_start_task(self, arg):
         'Start a task'
-        self.amla.start_task(self.parse(arg))
+        self.amla.start_task(self.parse(arg)[0])
     def do_stop_task(self, arg):
         'Stop a task'
         self.amla.stop_task(self.parse(arg))
-
     def do_exit(self, arg):
         'Exit'
         self.amla.stop_scheduler(arg)
@@ -75,7 +74,7 @@ class AmlaCLI(cmd.Cmd):
         return arg.split()
 
 class Amla(Task):
-    """ AMLA CLI backend functions 
+    """ AMLA CLI backend functions
     - Start/Stop of scheduler
     - CRUD operations on tasks
     - Start/Stop of tasks
@@ -87,55 +86,34 @@ class Amla(Task):
         self.scheduler = None
 
     def start_scheduler(self, args):
-        if self.sys_config['exec']['scheduler'] == "service":
-            self.exec_process_async('scheduler')
-        else:
-            self.scheduler = Scheduler()
+        self.exec_process_async('scheduler', None)
 
     def stop_scheduler(self, args):
-        if self.sys_config['exec']['scheduler'] == "service":
-            parameters = {"op": "POST"}
-            self.send_request("scheduler", "scheduler/stop", parameters)
-            self.terminate_process('scheduler')
-        else:
-            self.scheduler.stop_scheduler()
+        parameters = {"op": "POST"}
+        self.send_request("scheduler", "scheduler/stop", parameters)
+        self.terminate_service('scheduler')
 
     def add_task(self, config):
-        if self.sys_config['exec']['scheduler'] == "service":
-            parameters = {"config": config, "op": "POST"}
-            task = self.send_request("scheduler", "tasks/add", parameters)
-        else:
-            task = self.scheduler.add_task({"config": config})
+        parameters = {"config": config, "op": "POST"}
+        task = self.send_request("scheduler", "tasks/add", parameters)
         print("Added task: " + str(task) + " to schedule.")
 
-    def delete_task(self, taskid):
-        if self.sys_config['exec']['scheduler'] == "service":
-            parameters = {"taskid": int(taskid), "op": "POST"}
-            self.send_request("scheduler", "tasks/delete", parameters)
-        else:
-            self.scheduler.delete_task({"taskid": int(taskid)})
+    def delete_task(self, task_id):
+        parameters = {"task_id": int(task_id), "op": "POST"}
+        self.send_request("scheduler", "tasks/delete", parameters)
 
     def get_tasks(self, arg):
-        if self.sys_config['exec']['scheduler'] == "service":
-            parameters = {'op': 'GET'}
-            tasks = self.send_request("scheduler", "tasks/get", parameters)
-        else:
-            tasks = self.scheduler.get_tasks()
+        parameters = {'op': 'GET'}
+        tasks = self.send_request("scheduler", "tasks/get", parameters)
         return tasks
 
-    def start_task(self, taskid):
-        if self.sys_config['exec']['scheduler'] == "service":
-            parameters = {"taskid": int(taskid), "op": "POST"}
-            self.send_request("scheduler", "tasks/start", parameters)
-        else:
-            self.scheduler.start_task({"taskid": taskid})
+    def start_task(self, task_id):
+        parameters = {"task_id": int(task_id), "op": "POST"}
+        self.send_request("scheduler", "tasks/start", parameters)
 
-    def stop_task(self, taskid):
-        if self.sys_config['exec']['scheduler'] == "service":
-            parameters = {"taskid": taskid, "op": "POST"}
-            self.send_request("scheduler", "tasks/stop", parameters)
-        else:
-            self.scheduler.stop_task({"taskid": taskid})
+    def stop_task(self, task_id):
+        parameters = {"task_id": task_id, "op": "POST"}
+        self.send_request("scheduler", "tasks/stop", parameters)
 
 if __name__ == "__main__":
     amla = AmlaCLI()

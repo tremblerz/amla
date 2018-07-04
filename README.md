@@ -64,10 +64,12 @@ http://aws.amazon.com/blogs/machine-learning/get-started-with-deep-learning-usin
 ### Install
 ```
     git clone https://github.com/ciscoai/amla
+    cd amla/amla
+    pip install -r requirements.txt
 ```
+
 ### Run the CLI
 ```
-    cd amla/amla
     python amla.py
 ```
 
@@ -102,6 +104,12 @@ Added task: {'taskid': 3, 'state': 'init', 'config': 'configs/config.run.test.js
 ```
     tensorboard --logdir=amla/results/<arch name>/results/
 ```
+
+## Questions?
+
+* Documentation: amla.readthedocs.org
+* Twitter: @amla_ai
+* Slack: ciscoai.slack.com/amla
 
 ## Authors
 * Utham Kamath pukamath@cisco.com

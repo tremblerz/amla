@@ -25,6 +25,7 @@ from __future__ import print_function
 from datetime import datetime
 import math
 import sys
+import json
 import numpy as np
 import tensorflow as tf
 
@@ -34,8 +35,8 @@ tf.app.flags.DEFINE_string('config', './configs/config.json',
                            """Configuration file""")
 tf.app.flags.DEFINE_string('base_dir', '.',
                            """Working directory to run from""")
-tf.app.flags.DEFINE_string('iteration', '.',
-                           """Iteration index""")
+tf.app.flags.DEFINE_string('task', '.',
+                           """Task information""")
 sys.path.insert(0, FLAGS.base_dir)
 from train_eval.tf import net
 from common.task import Task
@@ -51,7 +52,8 @@ class Evaluate(Task):
         self.task_config_key = config
         self.task_config = self.read(self.task_config_key)
         self.base_dir = base_dir
-        self.iteration = int(iteration)
+        self.task = json.loads(task)
+        self.iteration = self.task['iteration']
         self.get_task_params()
 
     def __del__(self):
@@ -75,7 +77,7 @@ class Evaluate(Task):
         self.train_dir = self.base_dir + "/results/" + \
             self.arch_name + "/" + str(self.iteration) + "/train"
         self.eval_dir = self.base_dir + "/results/" + \
-            self.arch_name + "/" + str(self.iteration) + "/results"
+            self.arch_name + "/" + str(self.iteration) + "/evaluate"
         self.checkpoint_dir = self.train_dir
 
     def eval_once(self, saver, summary_writer, top_k_op, summary_op, k=1):
@@ -214,13 +216,19 @@ class Evaluate(Task):
         if not tf.gfile.Exists(self.eval_dir):
             tf.gfile.MakeDirs(self.eval_dir)
         self.evaluate(network)
+        if self.sys_config['exec']['scheduler'] == "service":
+             self.put_results()
 
+    def put_results(self):
+        task = {"task_id": int(self.task_id), "op": "POST"}
+        task['state'] == "complete"
+        #self.send_request("scheduler", "tasks/update", task)
 
 def main(argv=None):  # pylint: disable=unused-argument
     config = FLAGS.config
     base_dir = FLAGS.base_dir
-    iteration = FLAGS.iteration
-    evaluate = Evaluate(base_dir, config, iteration)
+    task = FLAGS.task
+    evaluate = Evaluate(base_dir, config, task)
     evaluate.run()
 
 
