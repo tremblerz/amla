@@ -46,7 +46,7 @@ class Evaluate(Task):
     """Evaluate task
     """
 
-    def __init__(self, base_dir, config, iteration):
+    def __init__(self, base_dir, config, task):
         super().__init__(base_dir)
         self.name = 'evaluate'
         self.task_config_key = config
@@ -220,8 +220,8 @@ class Evaluate(Task):
              self.put_results()
 
     def put_results(self):
-        task = {"task_id": int(self.task_id), "op": "POST"}
-        task['state'] == "complete"
+        task = {"task_id": int(self.task['task_id']), "op": "POST"}
+        task['state'] = "complete"
         #self.send_request("scheduler", "tasks/update", task)
 
 def main(argv=None):  # pylint: disable=unused-argument

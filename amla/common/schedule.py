@@ -15,6 +15,8 @@
 """
 
 import collections
+import operator
+import json
 
 class Schedule():
     """
@@ -24,7 +26,48 @@ class Schedule():
     """
     def __init__(self):
         return
-
+    
+    def get_next_task(self, tasks):
+          """ 
+          Scheduling algorthm
+          Find oldest task where state is "init"
+          or "waiting" and "waitingfor" are completed
+          TODO: Topological sort of task graph
+          """
+          if len(tasks) == 0:
+              return None
+          else:
+              schedulable =[]
+              for task in tasks:
+                  if task["state"] == "init":
+                     schedulable.append(task)
+                  elif task["state"] == "waiting":
+                     schedule = True
+                     for task_id in task["waiting_for"]:
+                         #Search for task in schedule
+                         #TODO: Create an index
+                         for t in tasks:
+                             if task_id == t["task_id"]:
+                                 if t["state"] != "complete":
+                                     schedule = False
+                                     break
+                     if schedule == True:
+                         schedulable.append(task)
+                         #After the tasks complete, then the iteration needs to be 
+                         #increased before this task is resumed 
+                         #TODO: Specific to generate tasks
+                         #Move elsewhere?
+                         task['iteration']+=1
+                         task['state'] = 'running'
+                         task['waiting_for'] = [];
+              task = None
+              #TODO: Sort schedulable based on task id
+              if len(schedulable) > 0:
+                  schedulable.sort(key=operator.itemgetter('task_id'))
+                  task = schedulable[0]
+                  task['state'] = 'running'
+                  task['waiting_for'] = [];
+              return task
 
 class ScheduleMem(Schedule):
     """
@@ -47,6 +90,8 @@ class ScheduleMem(Schedule):
         task = {'task_id': task_id, 'config': t['config'], 'state': 'init'}
         if 'iteration' in t:
            task['iteration'] = t['iteration']
+        else:
+           task['iteration'] = 0
         self.tasks.append(task)
         self.nexttask_id += 1
         return task
@@ -80,40 +125,7 @@ class ScheduleMem(Schedule):
         if len(self.tasks) == 0:
             return None
         else:
-            #Find oldest task where state is "init"
-            #or "waiting" and "waitingfor" are completed
-            schedulable =[]
-            #print(self.tasks)
-            for task in self.tasks:
-                #print(task)
-                if task["state"] == "init":
-                   schedulable.append(task)
-                elif task["state"] == "waiting":
-                   schedule = True
-                   for task_id in task["waiting_for"]:
-
-                       #Search for task in schedule
-                       #TODO: Create an index
-                       for t in self.tasks:
-                           if task_id == t["task_id"]:
-                               if t["state"] != "complete":
-                                   schedule = False
-                                   break
-                   if schedule == True:
-                       #After the tasks complete, then the iteration needs to be 
-                       #increased before this task is resumed 
-                       #TODO: Specific to generate tasks
-                       #Move elsewhere?
-                       task['iteration']+=1
-                       schedulable.append(task)
-            #print(schedulable)
-            task = None
-            #TODO: Sort schedulable based on task id
-            if len(schedulable) > 0:
-                task = schedulable[0]
-                #self.tasks.popleft()
-                task['state'] = 'running'
-                #print(task)
+            task = self.get_next_task(self.tasks)
             return task
 
     def get_all(self):
@@ -131,7 +143,6 @@ class ScheduleDB(Schedule):
         user = sys_config["database"]["user"]
         passwd = sys_config["database"]["password"]
         db = sys_config["database"]["db"]
-        print("Connecting");
         self.db = MySQLdb.connect(host=host,
                      user=user,
                      passwd=passwd,
@@ -161,18 +172,21 @@ class ScheduleDB(Schedule):
         iteration = 0
         if 'iteration' in task:
             iteration = task['iteration']
-        print(task)
-        print(str(iteration))
-        query = "INSERT INTO schedule (config, iteration, state) VALUES \
-             ('"+task['config']+"', "+str(iteration)+", 'init');"
+        query = "INSERT INTO schedule (config, iteration, state, waiting_for) VALUES \
+             ('"+task['config']+"', "+str(iteration)+", 'init', '[]');"
         self.cur.execute(query)
         self.db.commit()
+
+        task_id = self.cur.lastrowid
+        task['task_id'] = task_id
         return task
 
     def update(self, task):
         #TODO
-        query = "UPDATE schedule set state= '"+task['state']+", waiting_for='"\
-            +task['waiting_for']+"' WHERE task_id = "+str(task['task_id'])+";"
+        if 'waiting_for' not in task:
+            task['waiting_for'] = []
+        query = "UPDATE schedule set state= '"+task['state']+"', waiting_for='"\
+            +json.dumps(task['waiting_for'])+"' WHERE task_id = "+str(task['task_id'])+";"
         self.cur.execute(query)
         self.db.commit()
         return
@@ -198,64 +212,33 @@ class ScheduleDB(Schedule):
         self.cur.execute("START TRANSACTION;")
         task = None
         try:
-            query = "SELECT task_id, config, state FROM schedule WHERE \
-                task_id =  ( SELECT MIN(task_id) FROM schedule WHERE state='init');"
+            query = "SELECT task_id, config, state, iteration,  waiting_for FROM schedule \
+                WHERE state='init' OR state='waiting';"
             self.cur.execute(query)
-            row = self.cur.fetchone()
-            if row == None:
+            rows = self.cur.fetchall()
+            if len(rows) == 0:
                 #No tasks to schedule
                 return None
             tasks = []
             for row in rows:
-                task = {"task_id": row[0], "config": row[1], "state": row[2], "waiting_for": row[3]}
+                task = {"task_id": row[0], "config": row[1], "state": row[2],\
+                    "iteration": int(row[3]), "waiting_for": json.loads(row[4])}
                 tasks.append(task)
-
-
-            if len(tasks) == 0:
+            task = self.get_next_task(tasks)
+            if task == None:
+                self.db.rollback()
                 return None
-            else:
-                #Find oldest task where state is "init"
-                #or "waiting" and "waitingfor" are completed
-                schedulable =[]
-                #print(self.tasks)
-                for task in tasks:
-                    #print(task)
-                    if task["state"] == "init":
-                       schedulable.append(task)
-                    elif task["state"] == "waiting":
-                       schedule = True
-                       for task_id in task["waiting_for"]:
-    
-                           #Search for task in schedule
-                           #TODO: Create an index
-                           for t in tasks:
-                               if task_id == t["task_id"]:
-                                   if t["state"] != "complete":
-                                       schedule = False
-                                       break
-                       if schedule == True:
-                           #After the tasks complete, then the iteration needs to be 
-                           #increased before this task is resumed 
-                           #TODO: Specific to generate tasks
-                           #Move elsewhere?
-                           task['iteration']+=1
-                           schedulable.append(task)
-                #print(schedulable)
-                task = None
-                #TODO: Sort schedulable based on task id
-                if len(schedulable) > 0:
-                    task = schedulable[0]
-                    #self.tasks.popleft()
-                    task['state'] = 'running'
-                    #print(task)
-                    query = "UPDATE schedule set state = 'running' WHERE task_id = "+str(task['task_id'])+";"
-                    print (query)
-                    self.cur.execute(query)
-                    self.db.commit()
+                
+            query = "UPDATE schedule set state = 'running', waiting_for='[]', \
+                  iteration='"+str(task['iteration'])+"'  WHERE task_id = "+str(task['task_id'])+";"
+            
+            self.cur.execute(query)
+            self.db.commit()
         except:
-            print("Could not commit transaction. Rolling back")
+            print("Error: Could not commit transaction. Rolling back")
             self.db.rollback()
         return task
+
 
     def get_all(self):
         query = "SELECT task_id, config, state, FROM schedule;"

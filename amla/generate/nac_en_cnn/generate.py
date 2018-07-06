@@ -90,7 +90,7 @@ class Generate(Task):
         pass
 
     def save_config(self, arch):
-        # Generate the config file with architecture for this iteration
+        #Generate the config file with architecture for this iteration
         config = copy.deepcopy(self.task_config)
         config["arch"] = arch
         config["parameters"]["algorithm"] = "deterministic"
@@ -125,7 +125,7 @@ class Generate(Task):
         task = self.task
         task["op"] =  "POST"
         if self.iteration == self.task_config["parameters"]["iterations"]:
-            task['state'] == "complete"
+            task['state'] = "complete"
         else:
             new_tasks = []
             newtask = {"task_id": "", "config":  "results/" + \
@@ -142,7 +142,7 @@ class Generate(Task):
 
             task['state'] = "waiting"
             task['new_tasks'] = new_tasks
-            self.send_request("scheduler", "tasks/update", task)
+        self.send_request("scheduler", "tasks/update", task)
 
     def generate(self):
         """ Generate a network arch based on network config params: Used for

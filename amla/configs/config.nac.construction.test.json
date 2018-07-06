@@ -10,7 +10,7 @@
         "batch_size" : 50,
         "dataset":"cifar10",
         "data_dir":"/data/",
-        "iterations" : 2,
+        "iterations" : 3,
         "image_size" : 28,
         "log_stats": true
 },

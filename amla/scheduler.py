@@ -77,7 +77,7 @@ class Scheduler(Task):
         while not self.stop:
             task = self.get_task();
             if task != None:
-                print("Starting task"+str(task))
+                #print("Starting task"+str(task))
                 self.start_task(task)
             else:
                 #print("Nothing to schedule")
@@ -111,7 +111,6 @@ class Scheduler(Task):
               t['iteration'] = task['iteration']
               new_task  = self.schedule.add(t)
               task['waiting_for'].append(new_task['task_id'])
-        print(task)
         if "new_tasks" in task:
             del task["new_tasks"]
         self.schedule.update(task)
@@ -132,7 +131,6 @@ class Scheduler(Task):
             #Start task may be called with just the task_id set, or with the 
             #full task structure
             task = self.schedule.get(task)
-        print ("Start task"+str(task))
         self.task_config_key = task['config']
         self.task_config = self.read(self.task_config_key)
         if self.task_config == None:
