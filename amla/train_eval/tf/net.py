@@ -59,8 +59,7 @@ TOWER_NAME = 'tower'
 
 DATA_URL = 'https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz'
 
-"""NacNet: Neural Architecture Construction
-Defines NACNet.
+"""Net: Neural Net Construction
 """
 
 
@@ -75,35 +74,12 @@ class Net:
         self.get_task_params()
 
     def get_task_params(self):
-        # Mode: oneshot, construct, test
-        # Alg: deterministic, random, envelopenet
-
-        # TODO : Move to train/eval/common, pass path to json config file
-#        self.execmode = self.task_config["parameters"]["exec"]
-#        self.mode = self.task_config["parameters"]["mode"]
-#        self.algorithm = self.task_config["parameters"]["algorithm"]
-
-#        self.steps = self.task_config["parameters"]["steps"]
         self.batch_size = self.task_config["parameters"]["batch_size"]
         self.dataset = self.task_config["parameters"]["dataset"]
         self.image_size = self.task_config["parameters"]["image_size"]
         self.data_dir = self.base_dir + "/" + \
             self.task_config["parameters"]["data_dir"]
         self.arch = self.task_config["arch"]
-#        self.evalintval = self.task_config["parameters"]["evalintval"];
-
-#        self.archname=self.task_config["parameters"]["archname"];
-#        self.narchname=self.task_config["parameters"]["archname"];
-
-#        self.iterations = self.task_config["parameters"]["iterations"];
-#        self.initcell = self.task_config["initcell"]
-#        self.classificationcell = self.task_config["classificationcell"]
-#        if self.algorithm == "deterministic":
-        #self.task_config[self.algorithm] = {"arch": self.task_config["arch"]}
-#        if self.mode == "oneshot":
-#            self.iterations = 1;
-#        self.task_config[self.algorithm]['initcell'] = self.initcell
-#        self.gpus = self.task_config["parameters"]["gpus"]
 
     def _activation_summary(self, x):
         """Helper to create summaries for activations.
@@ -228,7 +204,7 @@ class Net:
                   scope='Nacnet'
                  ):
 
-        softmax_linear = self.net_nacnet(
+        softmax_linear = self.gen_amlanet(
             images,
             arch,
             archname,
@@ -469,7 +445,7 @@ class Net:
                 scope,
                 arch):
 
-        net = self.envelopegen(net, log_stats, is_training,
+        net = self.gen_network(net, log_stats, is_training,
                                scope,
                                arch)
         return net
@@ -483,7 +459,7 @@ class Net:
         for cell in self.cells:
             cell.get_params()
 
-    def envelopegen(self, inputs, log_stats=False, is_training=True,
+    def gen_network(self, inputs, log_stats=False, is_training=True,
                     scope='Nacnet',
                     arch=None):
 
@@ -528,27 +504,40 @@ class Net:
                 net, end_points = envelope.cell(
                     net, channelwidth, is_training, filters=celltype["filters"])
 
+            #TODO: Move to stubs
             elif 'widener' in celltype:
-                nscope = 'Envelope_' + str(cellnumber) + '_MaxPool_2x2'
+                nscope = 'Widener_' + str(cellnumber) + '_MaxPool_2x2'
                 net1 = slim.max_pool2d(
                     net, [2, 2], scope=nscope, padding='SAME')
-                nscope = 'Envelope_' + str(cellnumber) + '_conv_3x3'
+                nscope = 'Widener_' + str(cellnumber) + '_conv_3x3'
                 net2 = slim.conv2d(
                     net, channelwidth, [
                         3, 3], stride=2, scope=nscope, padding='SAME')
                 net = tf.concat(axis=3, values=[net1, net2])
                 channelwidth *= 2
+            elif 'widener2' in celltype:
+                for input_conn in celltype["inputs"]:
+                    reduced_inputs = self.nets[input_conn]
+                    while(reduced_inputs.shape[1] != input_dim[1]):
+                        reduced_inputs = slim.max_pool2d(reduced_inputs, [2,2], padding='SAME')
+                    all_inputs.append(reduced_inputs)
+                net = tf.concat(axis=3, values=all_inputs)
+                num_channels = int(input_dim[3])
+                nscope='Widener_'+str(cellnumber)+'_MaxPool_2x2'
+                print("Initial #channels={}, after skip={}".format(num_channels, int(net.shape[3])))
+                net = slim.max_pool2d(net, [2,2], scope=nscope, padding='SAME')
+                channelwidth *= 2
             elif 'outputs' in celltype:
                 pass
             else:
-                print("Error: Invalid cell defintion" + str(celltype))
+                print("Error: Invalid cell definition" + str(celltype))
                 exit(-1)
 
             self.nets.append(net)
             cellnumber += 1
         return net, end_points
 
-    def net_nacnet(
+    def gen_amlanet(
             self,
             inputs,
             arch=None,
@@ -557,7 +546,7 @@ class Net:
             classificationcell=None,
             log_stats=False,
             is_training=True,
-            scope='Nacnet'):
+            scope='Amlanet'):
         net = self.add_init(inputs, initcell, is_training)
         end_points = {}
         net, end_points = self.add_net(net, log_stats, is_training,
