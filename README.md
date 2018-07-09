@@ -100,6 +100,9 @@ Added task: {'taskid': 3, 'state': 'init', 'config': 'configs/config.run.test.js
 #amla start_task <taskid> 
 ```
 
+Note: If the task run fails, kill the scheduler process,
+remove the results/ directory, and restart amla
+
 ### Analyze
 ```
     tensorboard --logdir=amla/results/<arch name>/results/
