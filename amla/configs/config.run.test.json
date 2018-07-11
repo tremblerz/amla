@@ -1,7 +1,7 @@
 {
 "parameters": {
         "arch_name":"nac-run-test",
-        "mode":"oneshot",
+        "mode":"train",
         "algorithm": "deterministic",
         "gpus":"[]",
         "steps" : 100,

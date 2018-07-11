@@ -22,6 +22,8 @@ class Store:
     """
     Base store class
     Abstracts persistent key-value store (file system/?)
+    Provides no guarantees on atomicity/consistency/isolation/durability
+    other than those provided by underlying implementation
     """
     def __init__(self, base_dir, sys_config):
         self.sys_config = sys_config
@@ -31,7 +33,7 @@ class Store:
         pass
 
     def read(self, key):
-        if self.sys_config['persistent'] == 'filesystem':
+        if self.sys_config['keyvalue'] == 'filesystem':
             key = self.base_dir + "/" + key
             try:
                 with open(key, 'r') as fread:

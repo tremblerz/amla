@@ -1,6 +1,6 @@
 {
     "persistent": "filesystem",
-    "schedule": "memory",
+    "schedule": "database",
     "keyvalue": "filesystem",
     "database": {"user": "amla", "password": "amla", "host": "localhost", "db": "amla"},
     "services" : ["scheduler", "train", "evaluate", "generate"],

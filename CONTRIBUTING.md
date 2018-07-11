@@ -10,9 +10,11 @@ Feature requests are welcome.
 * If you would like to see a new major feature added, please consider making a feature request
 Current feature requests are listed in the (issue tracker)(#issuetracker).
 If you do not see an existing feature request that covers your feature, please add a new feature request to the issue tracker. 
-Please use the label #feature-request in the issue title when adding a new feature request.
+Please use the label "Feature Request" on the issue when adding a new feature request.
 
-* If your feature request already exists in the tracker, there may be already be a proposal submitted for it.
+* Feature requests with major codebase changes need a proposal document. 
+Minor feature requests don't need an associated proposal.
+If your feature request already exists in the tracker, there may be already be a proposal submitted for it.
 Current proposals are organised by area [here](./docs/proposals)
 The proposals follow the naming convention: docs/proposals/<area>/<github username>-<proposal name>.md, where the proposal name is an area specific name: E.g. docs/proposals/deployer/pkamath-kubeflow.md
 If your feature request fits in an existing area, and a proposal exists, please consider contributing to 
@@ -120,9 +122,7 @@ included in the project:
    git checkout -b <topic-branch-name>
    ```
 
-4. Commit your changes in logical chunks. Please adhere to these [git commit
-   message guidelines](http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html)
-   or your code is unlikely to be merged into the main project. Use Git's
+4. Commit your changes in logical chunks. Use Git's
    [interactive rebase](https://help.github.com/articles/interactive-rebase)
    feature to tidy up your commits before making them public.
 

@@ -24,6 +24,7 @@ from datetime import datetime
 import ast
 import sys
 import time
+import json
 
 import tensorflow as tf
 
@@ -33,10 +34,8 @@ tf.app.flags.DEFINE_string('config', './configs/config.json',
                            """Configuration file""")
 tf.app.flags.DEFINE_string('base_dir', '.',
                            """Working directory to run from""")
-tf.app.flags.DEFINE_string('iteration', '.',
-                           """Iteration index""")
-tf.app.flags.DEFINE_string('max_steps', '100000',
-                           """Maximum number of steps to run""")
+tf.app.flags.DEFINE_string('task', '.',
+                           """Task information""")
 sys.path.insert(0, FLAGS.base_dir)
 from train_eval.tf import net
 from common.task import Task
@@ -50,14 +49,15 @@ class Train(Task):
     """Trainingtask
     """
 
-    def __init__(self, base_dir, config, max_steps, iteration):
+    def __init__(self, base_dir, config, task):
         super().__init__(base_dir)
         self.name = 'train'
         self.task_config_key = config
         self.task_config = self.read(self.task_config_key)
         self.base_dir = base_dir
-        self.max_steps = int(max_steps)
-        self.iteration = int(iteration)
+        self.task = json.loads(task)
+        self.iteration = self.task['iteration']
+        self.max_steps = self.task['steps']
         self.get_task_params()
 
     def __del__(self):
@@ -100,8 +100,8 @@ class Train(Task):
                 "arch": self.task_config["arch"]}
         if self.mode == "oneshot":
             self.iterations = 1
-        self.data_dir = self.base_dir + "/" + \
-            self.task_config["parameters"]["data_dir"] + '/' + str(self.iteration)
+        #self.data_dir = self.base_dir + "/" + \
+        #    self.task_config["parameters"]["data_dir"] + '/' + str(self.iteration)+"/train"
         self.gpus = self.task_config["parameters"]["gpus"]
         self.arch = self.task_config["arch"]
         global_batch_size = self.batch_size
@@ -394,14 +394,23 @@ class Train(Task):
             self.train(network)
         else:
             self.multi_gpu_train(network)
+        if self.sys_config['exec']['scheduler'] == "service":
+             self.put_results()
+
+    def put_results(self):
+        task = {"task_id": int(self.task['task_id']), "op": "POST"}
+        if self.task["steps"] == self.task_config["parameters"]["steps"]:
+            task['state'] = "complete"
+        else:
+            task['state'] = "running"
+        self.send_request("scheduler", "tasks/update", task)
 
 
 def main(argv=None):  # pylint: disable=unused-argument
     config = FLAGS.config
     base_dir = FLAGS.base_dir
-    max_steps = FLAGS.max_steps
-    iteration = FLAGS.iteration
-    train = Train(base_dir, config, max_steps, iteration)
+    task = FLAGS.task
+    train = Train(base_dir, config, task)
     train.run()
 
 
