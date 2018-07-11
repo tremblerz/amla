@@ -243,8 +243,7 @@ class Scheduler(Task):
         """Start the Evaluate subtask
         The Evaluate subtask evaulates a network trained by the Train subtask
         """
-        iteration = task['iteration']
-        if task['iteration'] > 0:
+        if task['steps'] > self.task_config["parameters"]['eval_interval']:
             redirect = '>>'
         else:
             redirect = '>'
@@ -258,8 +257,9 @@ class Scheduler(Task):
         elif self.sys_config['exec']['evaluate'] == "library":
             pass
         elif self.sys_config['exec']['evaluate'] == "process":
-            print ("Evaluation in progress. Iteration: "+str(iteration))
-            results_key = "results/"+self.arch_name+"/"+str(iteration)+"/evaluate/results.eval.log"
+            print ("Evaluation in progress. Iteration: "+str(task['iteration']))
+            results_key = "results/"+self.arch_name+"/"+str(task['iteration'])+"/evaluate/results.eval.log"
+            self.write(results_key, {})
             self.exec_process('evaluate', ['--config='+\
                 config_key, '--base_dir='+self.base_dir,\
                 "--task='"+ json.dumps(task)+"'", \
@@ -276,18 +276,19 @@ app = Flask("scheduler")
 @app.route('/api/v1.0/tasks/add', methods=['POST'])
 def add_task():
     #global sched
-    config = json.loads(request.data)
+    config = json.loads(request.data.decode())
     return json.dumps(scheduler.add_task(config))
 
 @app.route('/api/v1.0/tasks/delete', methods=['POST'])
 def delete_task():
-    task = json.loads(request.data)
+    task = json.loads(request.data.decode())
     scheduler.delete_task(task)
     return json.dumps({"result": "OK"})
 
 @app.route('/api/v1.0/tasks/update', methods=['POST'])
 def update_task():
-    result = scheduler.update_task(json.loads(request.data))
+    task = json.loads(request.data.decode())
+    result = scheduler.update_task(task)
     return json.dumps({"result": str(result)})
 
 @app.route('/api/v1.0/tasks/get', methods=['GET'])
@@ -299,7 +300,7 @@ def start_scheduler_task(task):
 
 @app.route('/api/v1.0/tasks/start', methods=['POST'])
 def start_task():
-    task = json.loads(request.data)
+    task = json.loads(request.data.decode())
     print("Scheduler task:"+str(task))
     print("Scheduler task:"+str(task['task_id']))
     result = scheduler.start_thread(start_scheduler_task, task)
@@ -308,7 +309,7 @@ def start_task():
 @app.route('/api/v1.0/tasks/stop', methods=['POST'])
 def stop_task():
     #global sched
-    task = json.loads(request.data)
+    task = json.loads(request.data.decode())
     result = scheduler.stop_task(task)
     return json.dumps({"result": str(result)})
 
@@ -322,7 +323,7 @@ def stop_scheduler():
 
 @app.route('/api/v1.0/scheduler/results', methods=['POST'])
 def put_results():
-    task = json.loads(request.data)
+    task = json.loads(request.data.decode())
     result = scheduler.start_thread(put_results, task)
     return json.dumps({"result": str(result)})
 
