@@ -241,7 +241,7 @@ class ScheduleDB(Schedule):
 
 
     def get_all(self):
-        query = "SELECT task_id, config, state, FROM schedule;"
+        query = "SELECT task_id, config, state FROM schedule;"
         self.cur.execute(query)
         rows = self.cur.fetchall()
         tasks = []
