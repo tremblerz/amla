@@ -175,7 +175,9 @@ def distorted_inputs(data_dir, batch_size, image_size):
         # distortions applied to the image.
 
         # Randomly crop a [height, width] section of the image.
-        distorted_image = tf.random_crop(reshaped_image, [height, width, 3])
+        resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image,
+                                                               height, width)
+        distorted_image = tf.random_crop(resized_image, [32, 32, 3])
 
         # Randomly flip the image horizontally.
         distorted_image = tf.image.random_flip_left_right(distorted_image)
@@ -193,7 +195,7 @@ def distorted_inputs(data_dir, batch_size, image_size):
         float_image = tf.image.per_image_standardization(distorted_image)
 
         # Set the shapes of tensors.
-        float_image.set_shape([height, width, 3])
+        float_image.set_shape([32, 32, 3])
         read_input.label.set_shape([1])
 
         # Ensure that the random shuffling has good mixing properties.
@@ -202,6 +204,7 @@ def distorted_inputs(data_dir, batch_size, image_size):
                                  min_fraction_of_examples_in_queue)
         print('Filling queue with %d CIFAR images before starting to train. '
               'This will take a few minutes.' % min_queue_examples)
+        # tf.summary.image('cropped_images', tf.expand_dims(float_image, axis=0))
 
     # Generate a batch of images and labels by building up a queue of examples.
     return _generate_image_and_label_batch(float_image, read_input.label,
@@ -241,7 +244,7 @@ def inputs(eval_data, data_dir, batch_size, image_size):
         read_input = read_cifar10(filename_queue)
         reshaped_image = tf.cast(read_input.uint8image, tf.float32)
 
-        IMAGE_SIZE = image_size
+        IMAGE_SIZE = 32#image_size This is for inference hence should be 32
         height = IMAGE_SIZE
         width = IMAGE_SIZE
 
