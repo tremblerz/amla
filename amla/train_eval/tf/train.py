@@ -95,8 +95,7 @@ class Train(Task):
         self.iterations = self.task_config["parameters"]["iterations"]
         self.init_cell = self.task_config["init_cell"]
         self.classification_cell = self.task_config["classification_cell"]
-        self.child_training = self.task_config["child_training"] 
-                              if "child_training" in self.task_config.keys() else {}
+        self.child_training = self.task_config["child_training"] if "child_training" in self.task_config.keys() else {}
         if self.algorithm == "deterministic":
             self.task_config[self.algorithm] = {
                 "arch": self.task_config["arch"]}
