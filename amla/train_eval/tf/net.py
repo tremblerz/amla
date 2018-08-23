@@ -361,7 +361,23 @@ class Net:
 
         curr_epoch = global_step // num_batches_per_epoch
 
-        if child_training["lr"]["type"] == "cosine_decay":
+        if "lr" not in child_training.keys() or child_training["lr"]["type"] == "exponential_decay":
+            try:
+                initial_lr = child_trainingi["lr"]["initial"]
+            except KeyError:
+                initial_lr = INITIAL_LEARNING_RATE
+            try:
+                lr_decay = child_training["lr"]["decay"]
+            except KeyError:
+                lr_decay = LEARNING_RATE_DECAY_FACTOR
+
+            learning_rate = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
+                                                       global_step,
+                                                       decay_steps,
+                                                       LEARNING_RATE_DECAY_FACTOR,
+                                                       staircase=True)            
+
+        elif child_training["lr"]["type"] == "cosine_decay":
             curr_epoch = tf.to_int32(curr_epoch)
             curr_epoch = tf.Print(curr_epoch, [curr_epoch], message="curr_epoch:")
             last_reset = tf.Variable(0, dtype=tf.int32, trainable=False,
@@ -390,22 +406,6 @@ class Net:
                 tf.greater_equal(T_curr, T_i), _update, _no_update)
 
 
-        elif child_training["lr"]["type"] == "exponential_decay":
-            try:
-                initial_lr = child_trainingi["lr"]["initial"]
-            except KeyError:
-                initial_lr = INITIAL_LEARNING_RATE
-            try:
-                lr_decay = child_training["lr"]["decay"]
-            except KeyError:
-                lr_decay = LEARNING_RATE_DECAY_FACTOR
-
-            learning_rate = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
-                                                       global_step,
-                                                       decay_steps,
-                                                       LEARNING_RATE_DECAY_FACTOR,
-                                                       staircase=True)            
-
         tf.summary.scalar('learning_rate', learning_rate)
 
         if "regularization" in child_training.keys():
@@ -424,7 +424,7 @@ class Net:
 
         # Compute gradients.
         with tf.control_dependencies([loss_averages_op]):
-            if child_training["optimizer"]["type"] == "sgd":
+            if "optimizer" not in child_training.keys() or child_training["optimizer"]["type"] == "sgd":
                 opt = tf.train.GradientDescentOptimizer(learning_rate)
             elif child_training["optimizer"]["type"] == "rms":
                 opt = tf.train.RMSPropOptimizer(lr, 0.9, 0.9, 1.0)
