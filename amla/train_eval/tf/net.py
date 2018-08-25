@@ -363,14 +363,19 @@ class Net:
 
         if "lr" not in child_training.keys() or child_training["lr"]["type"] == "exponential_decay":
             try:
-                initial_lr = child_trainingi["lr"]["initial"]
+                initial_lr = child_training["lr"]["initial"]
             except KeyError:
                 initial_lr = INITIAL_LEARNING_RATE
             try:
                 lr_decay = child_training["lr"]["decay"]
             except KeyError:
                 lr_decay = LEARNING_RATE_DECAY_FACTOR
+            try:
+                epochs_per_decay = child_training["lr"]["epochs_per_decay"]
+            except KeyError:
+                epochs_per_decay = NUM_EPOCHS_PER_DECAY
 
+            decay_steps = int(num_batches_per_epoch * epochs_per_decay)
             learning_rate = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
                                                        global_step,
                                                        decay_steps,

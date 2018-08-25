@@ -31,7 +31,7 @@ import tensorflow as tf
 # image size of 32 x 32. If one alters this number, then the entire model
 # architecture will change and any model would need to be retrained.
 FLAGS = tf.app.flags.FLAGS
-#IMAGE_SIZE = 24
+IMAGE_SIZE = 32 # Original image size of CIFAR-10
 
 # Global constants describing the CIFAR-10 data set.
 #NUM_CLASSES = 10
@@ -69,8 +69,8 @@ def read_cifar10(filename_queue):
     # See http://www.cs.toronto.edu/~kriz/cifar.html for a description of the
     # input format.
     label_bytes = 1  # 2 for CIFAR-100
-    result.height = 32
-    result.width = 32
+    result.height = IMAGE_SIZE
+    result.width = IMAGE_SIZE
     result.depth = 3
     image_bytes = result.height * result.width * result.depth
     # Every record consists of a label followed by the image, with a
@@ -167,17 +167,18 @@ def distorted_inputs(data_dir, batch_size, image_size):
         read_input = read_cifar10(filename_queue)
         reshaped_image = tf.cast(read_input.uint8image, tf.float32)
 
-        IMAGE_SIZE = image_size
-        height = IMAGE_SIZE
-        width = IMAGE_SIZE
+        padded_image_height = image_size
+        padded_image_width = image_size
+        final_image_size = IMAGE_SIZE
 
         # Image processing for training the network. Note the many random
         # distortions applied to the image.
 
         # Randomly crop a [height, width] section of the image.
         resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image,
-                                                               height, width)
-        distorted_image = tf.random_crop(resized_image, [32, 32, 3])
+                                                               padded_image_height, padded_image_width)
+
+        distorted_image = tf.random_crop(resized_image, [final_image_size, final_image_size, 3])
 
         # Randomly flip the image horizontally.
         distorted_image = tf.image.random_flip_left_right(distorted_image)
@@ -195,7 +196,7 @@ def distorted_inputs(data_dir, batch_size, image_size):
         float_image = tf.image.per_image_standardization(distorted_image)
 
         # Set the shapes of tensors.
-        float_image.set_shape([32, 32, 3])
+        float_image.set_shape([final_image_size, final_image_size, 3])
         read_input.label.set_shape([1])
 
         # Ensure that the random shuffling has good mixing properties.
@@ -244,17 +245,17 @@ def inputs(eval_data, data_dir, batch_size, image_size):
         read_input = read_cifar10(filename_queue)
         reshaped_image = tf.cast(read_input.uint8image, tf.float32)
 
-        IMAGE_SIZE = 32#image_size This is for inference hence should be 32
+        #image_size This is for inference hence should be 32
         height = IMAGE_SIZE
         width = IMAGE_SIZE
 
         # Image processing for evaluation.
         # Crop the central [height, width] of the image.
-        resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image,
-                                                               height, width)
+        '''resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image,
+                                                               height, width)'''
 
         # Subtract off the mean and divide by the variance of the pixels.
-        float_image = tf.image.per_image_standardization(resized_image)
+        float_image = tf.image.per_image_standardization(reshaped_image)
 
         # Set the shapes of tensors.
         float_image.set_shape([height, width, 3])
