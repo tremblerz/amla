@@ -1,6 +1,6 @@
 {
 "parameters": {
-        "arch_name":"darts",
+        "arch_name":"darts-v2",
         "mode":"train",
         "algorithm": "deterministic",
         "gpus":"[]",
@@ -11,11 +11,18 @@
         "data_dir":"/data/",
         "train_dir":"/train/",
         "iterations" : 5,
-        "image_size" : 26,
+        "image_size" : 40,
         "log_stats": true
 },
+"child_training": {
+    "optimizer": {"type": "momentum", "momentum": 0.9},
+    "lr": {"type": "cosine_decay", "max": 0.05, "min": 0.001, "T_mul": 2, "T_0": 10},
+    "gradient_clipping": {"type": "norm", "value":5.0},
+    "regularization": {"type": "l2", "value": 3e-4}
+},
 "init_cell": {
-    "Layer0": {"Branch0": {"block": "conv2d", "kernel_size": [3, 3], "outputs": 36}}
+    "Layer0": {"Branch0": {"block": "cutout", "size": 16}},
+    "Layer1": {"Branch0": {"block": "conv2d", "kernel_size": [3, 3], "outputs": 96}}
 },
 "classification_cell": {
     "Layer0": {"Branch0": {"block": "reduce_mean", "size": [1, 2]}},

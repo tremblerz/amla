@@ -89,7 +89,7 @@ def get_micro_net(inputs, log_stats=False, is_training=True,
                     arch=None):
 
     with tf.variable_scope(scope):
-        net = cell_dag.get_arch_from_dag(inputs, arch)
+        net = cell_dag.get_arch_from_dag(inputs, arch, is_training)
     return net
 
 def gen_network(inputs, log_stats=False, is_training=True,
