@@ -24,13 +24,14 @@ def trunc_normal(stddev):
 
 class Init(Cell):
     """Initialization (Stem) cell: The first cell of a CNN"""
-    def __init__(self, cellidx, network):
+    def __init__(self, cellidx):
         self.cellidx = cellidx
         self.cellname = "Init"
-        self.network = network
         Cell.__init__(self)
+
     def __del(self):
         pass
+
     def cell(self, inputs, arch, is_training):
         """Create the cell by instantiating the cell blocks"""
         nscope = 'Cell_' + self.cellname + '_' + str(self.cellidx)

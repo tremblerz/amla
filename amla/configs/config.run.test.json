@@ -24,8 +24,9 @@
     "Layer2": {"Branch0": {"block": "dropout", "keep_prob": 0.8}},
     "Layer3": {"Branch0": {"block": "fc-final", "inputs": 192, "outputs": 10}}
 },
-"arch":
-[
+"arch":{
+    "type":"macro",
+    "network":[
     {
         "filters": {
             "Branch2": "3x3"
@@ -100,6 +101,7 @@
         },
         "outputs": 1024
     }
-]
+    ]
+}
 
 }
