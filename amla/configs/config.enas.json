@@ -4,19 +4,27 @@
         "mode":"train",
         "algorithm": "deterministic",
         "gpus":"[]",
-        "steps" : 300000,
+        "steps" : 240000,
         "eval_interval" : 5000,
         "batch_size" : 64,
         "dataset":"cifar10",
         "data_dir":"/data/",
         "train_dir":"/train/",
         "iterations" : 5,
-        "image_size" : 26,
+        "image_size" : 40,
         "log_stats": true
 },
+
+"child_training": {
+    "optimizer": {"type": "momentum", "momentum": 0.9},
+    "lr": {"type": "cosine_decay", "max": 0.05, "min": 0.001, "T_mul": 2, "T_0": 10},
+    "gradient_clipping": {"type": "norm", "value":5.0},
+    "regularization": {"type": "l2", "value": 2e-4}
+},
+
 "init_cell": {
-    "Layer0": {"Branch0": {"block": "conv2d", "kernel_size": [3, 3], "outputs": 192}},
-    "Layer2": {"Branch0": {"block": "lrn" }}
+    "Layer0": {"Branch0": {"block": "cutout", "size": 16}},
+    "Layer1": {"Branch0": {"block": "conv2d", "kernel_size": [3, 3], "outputs": 112}}
 },
 "classification_cell": {
     "Layer0": {"Branch0": {"block": "reduce_mean", "size": [1, 2]}},
@@ -29,26 +37,26 @@
         "filters": { 
             "Branch0": "5x5sep" 
         }, 
-        "outputs": 192 
+        "outputs": 112 
     }, 
     { 
         "filters": { 
             "Branch0": "5x5"
         }, 
-        "outputs": 192 
+        "outputs": 112 
     }, 
     { 
         "filters": { 
             "Branch4": "5x5"                                                                                                       
         },                                                                                                                         
-        "outputs": 192                                                                                                             
+        "outputs": 112                                                                                                             
     },                                                                                                                             
     {                                                                                                                              
         "filters": {                                                                                                               
             "Branch1": "5x5sep"
         },                                                                                                    
         "inputs": [1],
-        "outputs": 192
+        "outputs": 112
     },
     {
         "widener2": {},
@@ -58,28 +66,28 @@
         "filters": {
             "Branch0": "3x3sep"
         },
-        "outputs": 384
+        "outputs": 224
     },
     {
         "filters": {
             "Branch4": "5x5"
         },
         "inputs": [4],
-        "outputs": 384
+        "outputs": 224
     },
     {
         "filters": {
             "Branch1": "3x3sep"
         },
         "inputs": [3,6,4],
-        "outputs": 384
+        "outputs": 224
     },
     {
         "filters": {
             "Branch1": "5x5sep"
         },
         "inputs": [3,5,6,1,4],
-        "outputs": 384
+        "outputs": 224
     },
     {
         "widener2": {},
@@ -90,28 +98,28 @@
             "Branch1": "5x5"
         },
         "inputs": [7],
-        "outputs": 768
+        "outputs": 448
     },
     {
         "filters": {
             "Branch2": "5x5sep"
         },
         "inputs": [2,8,4],
-        "outputs": 768
+        "outputs": 448
     },
     {
         "filters": {
             "Branch2": "3x3"
         },
         "inputs": [2,3,11,6],
-        "outputs": 768
+        "outputs": 448
     },
     {
         "filters": {
             "Branch2": "5x5sep"
         },
         "inputs": [8,3,12,1,6,4],
-        "outputs": 768
+        "outputs": 448
     }
 ]
 }

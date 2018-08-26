@@ -11,7 +11,7 @@
         "data_dir":"/data/",
         "train_dir":"/train/",
         "iterations" : 5,
-        "image_size" : 28,
+        "image_size" : 32,
         "log_stats": true
 },
 "init_cell": {
