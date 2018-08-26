@@ -25,14 +25,12 @@ def get_arch_from_dag(inputs, arch):
 							for input_node in inputs:
 								reduced_input = subgraph[input_node]
 								if reduced_input.shape[1] > min_output_size:
-									print("Reducing {}".format(input_node))
 									with tf.variable_scope("reduction_layers"):
 										while reduced_input.shape[1] != min_output_size:
 											reduced_input = tf.layers.conv2d(reduced_input, reduced_input.shape[3],
 												[3,3], strides=2, padding="SAME")
 								normalized_inputs.append(reduced_input)
 
-						#print(subgraph)
 						with tf.variable_scope(target_node["type"]):
 							# Concat
 							if target_node["type"] == "concat":
@@ -90,5 +88,4 @@ def get_arch_from_dag(inputs, arch):
 				net = tf.layers.conv2d(net, out_filters,
 					[1,1], strides=1)
 		nets.append(net)
-		print(net)
 	return net
