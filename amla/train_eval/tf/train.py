@@ -95,6 +95,7 @@ class Train(Task):
         self.iterations = self.task_config["parameters"]["iterations"]
         self.init_cell = self.task_config["init_cell"]
         self.classification_cell = self.task_config["classification_cell"]
+        self.child_training = self.task_config["child_training"] if "child_training" in self.task_config.keys() else {}
         if self.algorithm == "deterministic":
             self.task_config[self.algorithm] = {
                 "arch": self.task_config["arch"]}
@@ -160,7 +161,7 @@ class Train(Task):
             loss = network.loss(logits, labels)
             # Build a Graph that trains the model with one batch of examples and
             # updates the model parameters.
-            train_op = network.train(loss, global_step)
+            train_op = network.train(loss, global_step, self.child_training)
 
             class _LoggerHook(tf.train.SessionRunHook):
                 """Logs loss and runtime."""

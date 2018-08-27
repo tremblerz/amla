@@ -342,7 +342,7 @@ class Net:
 
         return loss_averages_op
 
-    def train(self, total_loss, global_step):
+    def train(self, total_loss, global_step, child_training):
         """Train CIFAR-10 model.
 
         Create an optimizer and apply to all trainable variables. Add moving
@@ -356,25 +356,102 @@ class Net:
             train_op: op for training.
         """
         # Variables that affect learning rate.
-        num_batches_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN / self.batch_size
-        decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
+        num_batches_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN // self.batch_size
+        #decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
 
-        # Decay the learning rate exponentially based on the number of steps.
-        learning_rate = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
-                                                   global_step,
-                                                   decay_steps,
-                                                   LEARNING_RATE_DECAY_FACTOR,
-                                                   staircase=True)
+        curr_epoch = global_step // num_batches_per_epoch
+
+        if "lr" not in child_training.keys() or child_training["lr"]["type"] == "exponential_decay":
+            try:
+                initial_lr = child_training["lr"]["initial"]
+            except KeyError:
+                initial_lr = INITIAL_LEARNING_RATE
+            try:
+                lr_decay = child_training["lr"]["decay"]
+            except KeyError:
+                lr_decay = LEARNING_RATE_DECAY_FACTOR
+            try:
+                epochs_per_decay = child_training["lr"]["epochs_per_decay"]
+            except KeyError:
+                epochs_per_decay = NUM_EPOCHS_PER_DECAY
+
+            decay_steps = int(num_batches_per_epoch * epochs_per_decay)
+            learning_rate = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
+                                                       global_step,
+                                                       decay_steps,
+                                                       LEARNING_RATE_DECAY_FACTOR,
+                                                       staircase=True)            
+
+        elif child_training["lr"]["type"] == "cosine_decay":
+            curr_epoch = tf.to_int32(curr_epoch)
+            curr_epoch = tf.Print(curr_epoch, [curr_epoch], message="curr_epoch:")
+            last_reset = tf.Variable(0, dtype=tf.int32, trainable=False,
+                                                 name="last_reset")
+            lr_max = child_training["lr"]["max"]
+            lr_min = child_training["lr"]["min"]
+            lr_T_0 = child_training["lr"]["T_0"]
+            lr_T_mul = child_training["lr"]["T_mul"]
+            T_curr = curr_epoch - last_reset
+            T_i = tf.Variable(lr_T_0, dtype=tf.int32,trainable=False, name="T_i")
+
+            def _update():
+                update_last_reset = tf.assign(last_reset, curr_epoch, use_locking=True)
+                update_T_i = tf.assign(T_i, T_i * lr_T_mul, use_locking=True)
+                with tf.control_dependencies([update_last_reset, update_T_i]):
+                  rate = tf.to_float(T_curr) / tf.to_float(T_i) * 3.1415926
+                  learning_rate = lr_min + 0.5 * (lr_max - lr_min) * (1.0 + tf.cos(rate))
+                return learning_rate
+
+            def _no_update():
+                rate = tf.to_float(T_curr) / tf.to_float(T_i) * 3.1415926
+                learning_rate = lr_min + 0.5 * (lr_max - lr_min) * (1.0 + tf.cos(rate))
+                return learning_rate
+
+            learning_rate = tf.cond(
+                tf.greater_equal(T_curr, T_i), _update, _no_update)
+
+
         tf.summary.scalar('learning_rate', learning_rate)
+
+        if "regularization" in child_training.keys():
+            if child_training["regularization"]["type"] == "l2":
+                # l2-regularization
+                l2_reg = child_training["regularization"]["value"]
+                tf_variables = [var for var in tf.trainable_variables()]
+                l2_losses = []
+                for var in tf_variables:
+                   l2_losses.append(tf.reduce_sum(var**2))
+                l2_loss = tf.add_n(l2_losses)
+                total_loss += l2_reg * l2_loss
 
         # Generate moving averages of all losses and associated summaries.
         loss_averages_op = self._add_loss_summaries(total_loss)
 
         # Compute gradients.
         with tf.control_dependencies([loss_averages_op]):
-            opt = tf.train.GradientDescentOptimizer(learning_rate)
-            #opt = tf.train.RMSPropOptimizer(lr, 0.9, 0.9, 1.0)
+            if "optimizer" not in child_training.keys() or child_training["optimizer"]["type"] == "sgd":
+                opt = tf.train.GradientDescentOptimizer(learning_rate)
+            elif child_training["optimizer"]["type"] == "rms":
+                opt = tf.train.RMSPropOptimizer(lr, 0.9, 0.9, 1.0)
+            elif child_training["optimizer"]["type"] == "momentum":
+                momentum = child_training["optimizer"]["momentum"]
+                opt = tf.train.MomentumOptimizer(learning_rate,
+                  momentum, use_locking=True, use_nesterov=True)
             grads = opt.compute_gradients(total_loss)
+
+        if "gradient_clipping" in child_training.keys():
+            if child_training["gradient_clipping"]["type"] == "norm":
+                # Gradient clipping based on norm
+                clipped = []
+                grad_bound = child_training["gradient_clipping"]["value"]
+                for grad, var in grads:
+                   if isinstance(grad, tf.IndexedSlices):
+                       c_g = tf.clip_by_norm(grad.values, grad_bound)
+                       c_g = tf.IndexedSlices(grad.indices, c_g)
+                   else:
+                       c_g = tf.clip_by_norm(grad, grad_bound)
+                   clipped.append((c_g, var))
+                grads = clipped
 
         # Apply gradients.
         apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
