@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+slim = tf.contrib.slim
+
 def get_arch_from_dag(inputs, arch, is_training):
     nets = [inputs]
     for index, cell_type in enumerate(arch["network"]):
@@ -59,9 +61,7 @@ def get_arch_from_dag(inputs, arch, is_training):
                             else:
                                 # get parameters
                                 input_node = subgraph[inputs[0]]
-                                # Apply RELU-Dropout-Conv-BN, TODO: parameterize this in json
-                                input_node = tf.nn.relu(input_node)
-                                input_node = tf.layers.dropout(input_node, rate=0.3, training=is_training)
+                                #print("input for {} in layer {} is {}".format(node, index, input_node))
 
                                 kernel_size = int(target_node["type"][0]), int(target_node["type"][2])
                                 conv_filters = target_node.get("filters", input_node.shape[3])
@@ -69,21 +69,33 @@ def get_arch_from_dag(inputs, arch, is_training):
                                 padding = target_node.get("activation", "SAME")
                                 activation = target_node.get("activation", None)
 
+                                # TODO using tf.layers API explode training loss, need to fix it
                                 if target_node["type"].endswith("maxpool"):
-                                    net = tf.layers.max_pooling2d(input_node, kernel_size,
-                                            strides=stride, padding=padding)
+                                    '''net = tf.layers.max_pooling2d(input_node, kernel_size,
+                                            strides=stride, padding=padding)'''
+                                    net = slim.max_pool2d(input_node, kernel_size,
+                                           stride=stride, padding=padding)
                                 elif target_node["type"].endswith("avgpool"):
-                                    net = tf.layers.average_pooling2d(input_node, kernel_size,
-                                            strides=stride, padding=padding)
+                                    '''net = tf.layers.average_pooling2d(input_node, kernel_size,
+                                            strides=stride, padding=padding)'''
+                                    net = slim.avg_pool2d(input_node, kernel_size,
+                                           stride=stride, padding=padding)
                                 elif target_node["type"].endswith("sep"):
-                                    net = tf.layers.separable_conv2d(input_node, conv_filters,
+                                    '''net = tf.layers.separable_conv2d(input_node, conv_filters,
                                             kernel_size, strides=stride, padding=padding,
-                                            activation=activation)
+                                            activation=activation)'''
+                                    net = slim.separable_conv2d(input_node, conv_filters,
+                                            kernel_size, 1, padding=padding, normalizer_fn=slim.batch_norm)
                                 else:
-                                    net = tf.layers.conv2d(input_node, conv_filters,
+                                    '''net = tf.layers.conv2d(input_node, conv_filters,
                                             kernel_size, strides=stride, padding=padding,
-                                            activation=activation)
-                                net = tf.layers.batch_normalization(net)
+                                            activation=activation)'''
+                                    net = slim.conv2d(input_node, conv_filters,
+                                            kernel_size, stride=stride, padding=padding, normalizer_fn=slim.batch_norm)
+                                # Apply RELU-Dropout-Conv-BN, TODO: parameterize this in json
+                                net = slim.batch_norm(net, is_training=is_training)
+                                input_node = tf.nn.relu(input_node)
+                                input_node = slim.dropout(input_node, keep_prob=0.3, is_training=is_training)
                                 subgraph[node] = net
                     else:
                         print("Invalid node specification. Only Integer and Dict allowed")
@@ -91,9 +103,12 @@ def get_arch_from_dag(inputs, arch, is_training):
             out_filters = nets[index].shape[3]
             if cell_type == "reduction_cell":
                 out_filters *= 2
- 
-            with tf.variable_scope("bottleneck_layer"):
-                net = tf.layers.conv2d(net, out_filters,
+
+            if out_filters != net.shape[3]:
+                with tf.variable_scope("bottleneck_layer"):
+                    net = tf.layers.conv2d(net, out_filters,
                         [1,1], strides=1)
         nets.append(net)
+    print(net)
+    net = tf.Print(net, [net], message="DEBUG:", first_n=100)
     return net

@@ -47,8 +47,8 @@ NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = cifar10_input.NUM_EXAMPLES_PER_EPOCH_FOR_EVAL
 # The decay to use for the moving average.
 MOVING_AVERAGE_DECAY = 0.9999
 # Epochs after which learning rate decays.
-NUM_EPOCHS_PER_DECAY = 350
-LEARNING_RATE_DECAY_FACTOR = 0.1    # Learning rate decay factor.
+NUM_EPOCHS_PER_DECAY = 2
+LEARNING_RATE_DECAY_FACTOR = 0.999    # Learning rate decay factor.
 INITIAL_LEARNING_RATE = 0.1             # Initial learning rate.
 
 # If a model is trained with multiple GPUs, prefix all Op names with tower_name
@@ -361,29 +361,19 @@ class Net:
         curr_epoch = global_step // num_batches_per_epoch
 
         if "lr" not in child_training.keys() or child_training["lr"]["type"] == "exponential_decay":
-            try:
-                initial_lr = child_training["lr"]["initial"]
-            except KeyError:
-                initial_lr = INITIAL_LEARNING_RATE
-            try:
-                lr_decay = child_training["lr"]["decay"]
-            except KeyError:
-                lr_decay = LEARNING_RATE_DECAY_FACTOR
-            try:
-                epochs_per_decay = child_training["lr"]["epochs_per_decay"]
-            except KeyError:
-                epochs_per_decay = NUM_EPOCHS_PER_DECAY
+            initial_lr = child_training["lr"].get("initial", INITIAL_LEARNING_RATE)
+            lr_decay = child_training["lr"].get("decay", LEARNING_RATE_DECAY_FACTOR)
+            epochs_per_decay = child_training["lr"].get("epochs_per_decay", NUM_EPOCHS_PER_DECAY)
 
             decay_steps = int(num_batches_per_epoch * epochs_per_decay)
-            learning_rate = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
+            learning_rate = tf.train.exponential_decay(initial_lr,
                                                        global_step,
                                                        decay_steps,
-                                                       LEARNING_RATE_DECAY_FACTOR,
+                                                       lr_decay,
                                                        staircase=True)            
 
         elif child_training["lr"]["type"] == "cosine_decay":
             curr_epoch = tf.to_int32(curr_epoch)
-            curr_epoch = tf.Print(curr_epoch, [curr_epoch], message="curr_epoch:")
             last_reset = tf.Variable(0, dtype=tf.int32, trainable=False,
                                                  name="last_reset")
             lr_max = child_training["lr"]["max"]
