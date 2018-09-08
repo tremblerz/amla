@@ -85,17 +85,19 @@ def get_arch_from_dag(inputs, arch, is_training):
                                             kernel_size, strides=stride, padding=padding,
                                             activation=activation)'''
                                     net = slim.separable_conv2d(input_node, conv_filters,
-                                            kernel_size, 1, padding=padding, normalizer_fn=slim.batch_norm)
+                                            kernel_size, 1, activation_fn=None,
+                                            padding=padding)
                                 else:
                                     '''net = tf.layers.conv2d(input_node, conv_filters,
                                             kernel_size, strides=stride, padding=padding,
                                             activation=activation)'''
                                     net = slim.conv2d(input_node, conv_filters,
-                                            kernel_size, stride=stride, padding=padding, normalizer_fn=slim.batch_norm)
+                                            kernel_size, activation_fn=None,
+                                            stride=stride, padding=padding)
                                 # Apply RELU-Dropout-Conv-BN, TODO: parameterize this in json
                                 net = slim.batch_norm(net, is_training=is_training)
-                                input_node = tf.nn.relu(input_node)
-                                input_node = slim.dropout(input_node, keep_prob=0.3, is_training=is_training)
+                                net = tf.nn.relu(net)
+                                net = slim.dropout(net, keep_prob=0.8, is_training=is_training)
                                 subgraph[node] = net
                     else:
                         print("Invalid node specification. Only Integer and Dict allowed")
@@ -106,9 +108,7 @@ def get_arch_from_dag(inputs, arch, is_training):
 
             if out_filters != net.shape[3]:
                 with tf.variable_scope("bottleneck_layer"):
-                    net = tf.layers.conv2d(net, out_filters,
-                        [1,1], strides=1)
+                    net = slim.conv2d(net, out_filters,
+                        [1,1], stride=1, padding='SAME')
         nets.append(net)
-    print(net)
-    net = tf.Print(net, [net], message="DEBUG:", first_n=100)
     return net

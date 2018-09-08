@@ -1,10 +1,10 @@
 {
 "parameters": {
-        "arch_name":"darts-v8",
+        "arch_name":"darts",
         "mode":"train",
         "algorithm": "deterministic",
         "gpus":"[]",
-        "steps" : 320000,
+        "steps" : 360000,
         "eval_interval" : 5000,
         "batch_size" : 96,
         "dataset":"cifar10",
@@ -16,7 +16,7 @@
 },
 "child_training": {
     "optimizer": {"type": "momentum", "momentum": 0.9},
-    "lr": {"type":"cosine_decay", "max": 0.05, "min":0.001, "T_mul": 2, "T_0": 10},
+    "lr": {"type":"cosine_decay", "max": 0.025, "min":0.001, "T_mul": 2, "T_0": 600},
     "gradient_clipping": {"type": "norm", "value":5.0},
     "regularization": {"type": "l2", "value": 3e-4}
 },
