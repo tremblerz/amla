@@ -12,7 +12,8 @@
         "data_dir":"/data/",
         "iterations" : 3,
         "image_size" : 32,
-        "log_stats": true
+        "log_stats": true,
+        "controller": "nac_en_cnn"
 },
 "envelopenet":{ "stages": 3,
         "layers_per_stage": [2,1,1],

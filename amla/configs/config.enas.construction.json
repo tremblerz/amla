@@ -1,0 +1,17 @@
+{
+"parameters": {
+        "arch_name":"enas-search",
+        "exec":"localhost",
+        "mode":"construct",
+        "gpus":"[]",
+        "steps" : 10000,
+        "eval_interval" : 1000,
+        "batch_size" : 50,
+        "dataset":"cifar10",
+        "data_dir":"/data/",
+        "iterations" : 5,
+        "image_size" : 40,
+        "log_stats": false,
+        "controller": "enas"
+}
+}

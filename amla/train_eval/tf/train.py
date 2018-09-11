@@ -93,6 +93,7 @@ class Train(Task):
         self.narch_name = self.task_config["parameters"]["arch_name"]
 
         self.iterations = self.task_config["parameters"]["iterations"]
+        self.validation_size = self.task_config["parameters"].get("validation_size")
         self.init_cell = self.task_config["init_cell"]
         self.classification_cell = self.task_config["classification_cell"]
         self.child_training = self.task_config["child_training"] if "child_training" in self.task_config.keys() else {}
@@ -137,7 +138,10 @@ class Train(Task):
             # Force input pipeline to CPU:0 to avoid operations sometimes ending up on
             # GPU and resulting in a slow down.
             with tf.device('/cpu:0'):
-                images, labels = network.distorted_inputs()
+                if self.validation_size is not None:
+                    images, labels = network.distorted_inputs(self.validation_size)
+                else:
+                    images, labels = network.distorted_inputs()
 
             # Build a Graph that computes the logits predictions from the
             # inference model.

@@ -23,6 +23,8 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import pickle as pickle
+import numpy as np
 
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
@@ -270,3 +272,108 @@ def inputs(eval_data, data_dir, batch_size, image_size):
     return _generate_image_and_label_batch(float_image, read_input.label,
                                            min_queue_examples, batch_size,
                                            shuffle=False)
+
+def _read_data(data_path, train_files):
+  """Reads CIFAR-10 format data. Always returns NHWC format.
+
+  Returns:
+    images: np tensor of size [N, H, W, C]
+    labels: np tensor of size [N]
+  """
+  images, labels = [], []
+  for file_name in train_files:
+    print(file_name)
+    full_name = os.path.join(data_path, file_name)
+    with open(full_name, "rb") as finp:
+      data = pickle.load(finp, encoding='bytes')
+      batch_images = data["data".encode()].astype(np.float32) / 255.0
+      batch_labels = np.array(data["labels".encode()], dtype=np.int32)
+      images.append(batch_images)
+      labels.append(batch_labels)
+  images = np.concatenate(images, axis=0)
+  labels = np.concatenate(labels, axis=0)
+  images = np.reshape(images, [-1, 3, 32, 32])
+  images = np.transpose(images, [0, 2, 3, 1])
+
+  return images, labels
+
+
+def read_data(data_path, num_valids=5000):
+  print("-" * 80)
+  print("Reading data")
+
+  images, labels = {}, {}
+
+  train_files = [
+    "data_batch_1",
+    "data_batch_2",
+    "data_batch_3",
+    "data_batch_4",
+    "data_batch_5",
+  ]
+  test_file = [
+    "test_batch",
+  ]
+  images["train"], labels["train"] = _read_data(data_path, train_files)
+
+  if num_valids:
+    images["valid"] = images["train"][-num_valids:]
+    labels["valid"] = labels["train"][-num_valids:]
+
+    images["train"] = images["train"][:-num_valids]
+    labels["train"] = labels["train"][:-num_valids]
+  else:
+    images["valid"], labels["valid"] = None, None
+
+  images["test"], labels["test"] = _read_data(data_path, test_file)
+
+  print("Prepropcess: [subtract mean], [divide std]")
+  mean = np.mean(images["train"], axis=(0, 1, 2), keepdims=True)
+  std = np.std(images["train"], axis=(0, 1, 2), keepdims=True)
+
+  print("mean: {}".format(np.reshape(mean * 255.0, [-1])))
+  print("std: {}".format(np.reshape(std * 255.0, [-1])))
+
+  images["train"] = (images["train"] - mean) / std
+  if num_valids:
+    images["valid"] = (images["valid"] - mean) / std
+  images["test"] = (images["test"] - mean) / std
+
+  return images, labels
+
+def inmemory_distorted_inputs(data_path, batch_size):
+    images, labels = read_data(data_path)
+    x_train, y_train = tf.train.shuffle_batch(
+        [images["train"], labels["train"]],
+        batch_size=batch_size,
+        capacity=50000,
+        enqueue_many=True,
+        min_after_dequeue=0,
+        num_threads=16,
+        allow_smaller_final_batch=True,
+      )
+
+    def _pre_process(x):
+        x = tf.pad(x, [[4, 4], [4, 4], [0, 0]])
+        x = tf.random_crop(x, [32, 32, 3])
+        x = tf.image.random_flip_left_right(x)
+
+        return x
+
+    x_train = tf.reshape(x_train, shape=(batch_size, x_train.shape[1], x_train.shape[2], x_train.shape[3]))
+    x_train = tf.map_fn(_pre_process, x_train, back_prop=False)
+    
+    return x_train, y_train
+
+def inmemory_inputs(data_path, batch_size, type_="valid"):
+    images, labels = read_data(data_path)
+    x_data, y_data = tf.train.batch(
+            [images[type_], labels[type_]],
+            batch_size=batch_size,
+            capacity=25000,
+            enqueue_many=True,
+            #min_after_dequeue=0,
+            num_threads=16,
+            allow_smaller_final_batch=True,
+        )
+    return x_data, y_data

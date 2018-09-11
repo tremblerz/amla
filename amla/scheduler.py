@@ -148,7 +148,7 @@ class Scheduler(Task):
             task['iteration'] = 0
 
         if self.task_config["parameters"]["mode"] == "construct":
-                self.generate(task)
+                self.generate(task, self.task_config["parameters"]["controller"])
         elif self.task_config["parameters"]["mode"] == "train":
                 self.train_eval(task)
         return 0
@@ -158,7 +158,7 @@ class Scheduler(Task):
         return 0
 
 
-    def generate(self, task): #iteration):
+    def generate(self, task, controller): #iteration):
         """Start the Generate subtask
         The Generate subtask generates a new network, using results from
         previous iteration of train/evaluate
@@ -177,7 +177,7 @@ class Scheduler(Task):
                 '--config='+ self.task_config_key, \
                 "--task='"+ json.dumps(task)+"'"]
             print("Starting generation. Iteration: "+str(iteration))
-            self.exec_process('generate/nac_en_cnn/generate.py', args) 
+            self.exec_process('generate/' + controller +'/generate.py', args) 
             print("Completed generation. Iteration: "+str(iteration))
         elif self.sys_config['exec']['eval'] == "deployer":
             pass

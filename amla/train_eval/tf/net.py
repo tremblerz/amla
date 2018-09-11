@@ -143,7 +143,7 @@ class Net:
             tf.add_to_collection('losses', weight_decay)
         return var
 
-    def distorted_inputs(self):
+    def distorted_inputs(self, validation_size=None):
         """Construct distorted input for a given dataset using the Reader ops.
 
         Returns:
@@ -160,6 +160,7 @@ class Net:
             images, labels = cifar10_input.distorted_inputs(
                 data_dir=data_dir, batch_size=self.batch_size, image_size=self.image_size)
         elif self.dataset == 'imagenet':
+            #TODO Implement validation set partitioning for Imagenet
             images, labels = imagenet_input.distorted_inputs()
         if self.use_fp16:
             images = tf.cast(images, tf.float16)

@@ -23,10 +23,9 @@ def trunc_normal(stddev):
 
 class Classification(Cell):
     """Classification cell: The final classification block of a CNN"""
-    def __init__(self, network, cellidx):
+    def __init__(self, cellidx):
         self.cellidx = cellidx
         self.cellname = "Classification"
-        self.network = network
         Cell.__init__(self)
     def __del__(self):
         pass
