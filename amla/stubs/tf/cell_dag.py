@@ -4,18 +4,19 @@ slim = tf.contrib.slim
 
 def get_arch_from_dag(inputs, arch, is_training):
     nets = [inputs]
+    aux_count = 0
     for index, cell_type in enumerate(arch["network"]):
 
         assert cell_type in arch, "{} is not defined in arch".format(cell_type)
         cell = arch[cell_type]
         subgraph = {}
 
-        with tf.variable_scope(cell_type + "-" + str(index)):
+        with tf.variable_scope(cell_type + "-" + str(index - aux_count)):
             for node in sorted(cell.keys(), key = lambda nodename: int(nodename[4:])):
                 with tf.variable_scope(node):
 
                     if type(cell[node]) == int:
-                        subgraph[node] = nets[index + cell[node]]
+                        subgraph[node] = nets[index - aux_count + cell[node]]
                     elif type(cell[node]) == dict:
                         target_node = cell[node]["node"]
                         inputs = cell[node]["input"]
@@ -30,10 +31,13 @@ def get_arch_from_dag(inputs, arch, is_training):
                             for input_node in inputs:
                                 reduced_input = subgraph[input_node]
                                 if reduced_input.shape[1] > min_output_size:
-                                    with tf.variable_scope("reduction_layers"):
+                                    with tf.variable_scope("reduction_layers_{}".format(input_node)):
+                                        times = 1
                                         while reduced_input.shape[1] != min_output_size:
-                                            reduced_input = tf.layers.conv2d(reduced_input, reduced_input.shape[3],
+                                            with tf.variable_scope("x"+str(times)):
+                                                reduced_input = tf.layers.conv2d(reduced_input, reduced_input.shape[3],
                                                                 [3,3], strides=2, padding="SAME")
+                                            times += 1
                                 normalized_inputs.append(reduced_input)
 
                         with tf.variable_scope(target_node["type"]):
@@ -56,6 +60,14 @@ def get_arch_from_dag(inputs, arch, is_training):
                                                                 [1,1], padding="SAME")
                                     target_inputs.append(scaled_input)
                                 net = tf.add_n(target_inputs)
+                                subgraph[node] = net
+                            # Dense connection
+                            elif target_node["type"] == "dense":
+                                input_node = subgraph[inputs[0]]
+                                output_units = target_node.get("outputs", None)
+                                net = slim.flatten(input_node)
+                                net = slim.fully_connected(net, output_units)
+                                net = slim.dropout(net, keep_prob=0.8, is_training=is_training)
                                 subgraph[node] = net
                             # Convolution and pooling
                             else:
@@ -87,6 +99,16 @@ def get_arch_from_dag(inputs, arch, is_training):
                                     net = slim.separable_conv2d(input_node, conv_filters,
                                             kernel_size, 1, normalizer_fn=slim.batch_norm,
                                             padding=padding)
+                                elif target_node["type"].endswith("dilated"):
+                                    rate = target_node.get("rate", 2)
+
+                                    initializer = tf.contrib.keras.initializers.he_normal()
+                                    shape = list(kernel_size) + [int(input_node.shape[3]), int(input_node.shape[3])]
+                                    filters = tf.get_variable("dilated_conv", shape,
+                                            initializer=initializer, trainable=True)
+                                    net = tf.nn.atrous_conv2d(input_node, filters, rate,
+                                            padding=padding)
+                                    net = tf.nn.relu(net)
                                 else:
                                     '''net = tf.layers.conv2d(input_node, conv_filters,
                                             kernel_size, strides=stride, padding=padding,
@@ -102,7 +124,12 @@ def get_arch_from_dag(inputs, arch, is_training):
                     else:
                         print("Invalid node specification. Only Integer and Dict allowed")
             
-            out_filters = nets[index].shape[3]
+            if cell_type == "auxiliary_classifier":
+                tf.add_to_collection("auxiliary_loss", net)
+                aux_count += 1
+                continue
+
+            out_filters = nets[index - aux_count].shape[3]
             if cell_type == "reduction_cell":
                 out_filters *= 2
 

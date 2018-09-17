@@ -234,6 +234,14 @@ class Net:
             cross_entropy, name='cross_entropy')
         tf.add_to_collection('losses', cross_entropy_mean)
 
+        # Get auxiliary loss, TODO remove hardcoded weight of 0.4
+        aux_logits = tf.get_collection('auxiliary_loss')
+        for logits in aux_logits:
+            cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                labels=labels, logits=logits)
+            cross_entropy_mean = tf.reduce_mean(cross_entropy)
+            tf.add_to_collection('losses', cross_entropy_mean)
+
         # The total loss is defined as the cross entropy loss plus all of the weight
         # decay terms (L2 loss).
         return tf.add_n(tf.get_collection('losses'), name='total_loss')
