@@ -190,7 +190,7 @@ class Generate(Task):
         lidx = 1
         ssidx[0] = 1
         stagenum = 0
-        for layer in self.arch:
+        for layer in self.arch["network"]:
             if 'widener' in layer:
                 lidx += 1
                 stages.append(stage)
@@ -445,15 +445,15 @@ class Generate(Task):
         return narch
 
     def gen_randomnet(self):
-        self.arch = []
+        self.arch = {"type":"macro","network":[]}
         for stage in range(self.stages):
             starch = []
             for idx in range(int(self.layers_per_stage[stage])):
                 starch.append({"filters": {}})
             self.set_outputs(starch, stage,)
-            self.arch += starch
+            self.arch["network"] += starch
             if stage != self.stages - 1:
-                self.arch = self.add_widener(self.arch)
+                self.arch["network"] = self.add_widener(self.arch)
         #print(self.arch)
         layer = 0
         for stage in range(self.stages):
@@ -462,7 +462,7 @@ class Generate(Task):
             for idx in range(0, self.layers_per_stage[stage]):
                 block = random.randint(0, len(self.blocks) - 1)
                 blockname = self.blocks[block]
-                self.arch[layer]["filters"]["Branch0"] = blockname
+                self.arch["network"][layer]["filters"]["Branch0"] = blockname
                 layer += 1
             # Widener
             layer += 1
@@ -488,17 +488,17 @@ class Generate(Task):
 #                    str(rlayer) +
 #                    ":" +
 #                    str(layer))
-                branch = len(self.arch[alayer]["filters"].keys())
+                branch = len(self.arch["network"][alayer]["filters"].keys())
                 branchname = "Branch" + str(branch)
                 self.arch[alayer]["filters"][branchname] = blockname
             # Widener
             startlayer += (self.layers_per_stage[stage] + 1)
-        self.arch = self.insert_skip(self.arch)
+        self.arch["network"] = self.insert_skip(self.arch)
         #print(json.dumps(self.arch, indent=4, sort_keys=True))
         return self.arch
 
     def gen_envelopenet_bystages(self):
-        self.arch = []
+        self.arch = {"type":"macro","network":[]}
         #print("Stages: " + str(self.stages))
         #print("Layerperstage: " + str(self.layers_per_stage))
         for stageidx in range(int(self.stages)):
@@ -512,7 +512,7 @@ class Generate(Task):
             self.set_outputs(stage, stageidx)
             if stageidx != int(self.stages) - 1:
                 stage = self.add_widener(stage)
-            self.arch += stage
+            self.arch["network"] += stage
         self.insert_skip(self.arch)
         #print(json.dumps(self.arch, indent=4, sort_keys=True))
         return self.arch
