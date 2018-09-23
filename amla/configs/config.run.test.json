@@ -11,21 +11,28 @@
         "data_dir":"/data/",
         "train_dir":"/train/",
         "iterations" : 5,
-        "image_size" : 32,
-        "log_stats": true
+        "image_size" : 40,
+        "log_stats": false
+},
+"child_training": {
+    "optimizer": {"type": "momentum", "momentum": 0.9},
+    "lr": {"type":"exponential_decay", "initial":0.040},
+    "gradient_clipping": {"type": "norm", "value":5.0},
+    "regularization": {"type": "l2", "value": 3e-4}
 },
 "init_cell": {
-    "Layer0": {"Branch0": {"block": "conv2d", "kernel_size": [1, 1], "outputs": 128}},
-    "Layer2": {"Branch0": {"block": "lrn" }}
+    "Layer0": {"Branch0": {"block": "cutout", "size": 16}},
+    "Layer1": {"Branch0": {"block": "conv2d", "kernel_size": [1, 1], "outputs": 128}}
 },
 "classification_cell": {
     "Layer0": {"Branch0": {"block": "reduce_mean", "size": [1, 2]}},
     "Layer1": {"Branch0": {"block": "flatten", "size": [3, 3]}},
-    "Layer2": {"Branch0": {"block": "dropout", "keep_prob": 0.8}},
+    "Layer2": {"Branch0": {"block": "dropout", "keep_prob": 0.7}},
     "Layer3": {"Branch0": {"block": "fc-final", "inputs": 192, "outputs": 10}}
 },
-"arch":
-[
+"arch":{
+    "type":"macro",
+    "network":[
     {
         "filters": {
             "Branch2": "3x3"
@@ -100,6 +107,7 @@
         },
         "outputs": 1024
     }
-]
+    ]
+}
 
 }
