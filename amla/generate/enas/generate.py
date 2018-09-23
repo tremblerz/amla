@@ -11,6 +11,8 @@ args = parser.parse_args()
 sys.path.insert(0, args.base_dir)
 from common.task import Task
 from generate.enas.general_controller import GeneralController
+from generate.enas.general_child import GeneralChild
+from stubs.tf import cifar10_input
 from generate.enas.child_model import ChildModel
 
 class FLAGS():
@@ -52,7 +54,7 @@ class Generate(Task):
         self.FLAGS.controller_optim_algo = "adam"
         self.FLAGS.controller_num_replicas = 1
         self.FLAGS.controller_num_aggregate = 1
-        self.FLAGS.controller_sync_replicas = False
+        self.FLAGS.controller_sync_replicas = False#True
         self.FLAGS.controller_lr_dec_start = 0
         self.FLAGS.controller_lr_dec_every = 1000000
 
@@ -84,10 +86,14 @@ class Generate(Task):
 
         child_model = self.child_model
         self.child_ops = {
-            "train_op": child_model.train_step,
+            "global_step": child_model.global_step,
             "loss": child_model.loss,
-            "acc": child_model.acc,
-            "child_step": child_model.global_step,
+            "train_op": child_model.train_op,
+            "lr": child_model.lr,
+            "grad_norm": child_model.grad_norm,
+            "train_acc": child_model.train_acc,
+            "optimizer": child_model.optimizer,
+            "num_train_batches": child_model.num_train_batches,
         }
 
     def build_controller(self):
@@ -118,11 +124,48 @@ class Generate(Task):
             num_aggregate=self.FLAGS.controller_num_aggregate,
             num_replicas=self.FLAGS.controller_num_replicas
             )
-        self.child_model = ChildModel(self.base_dir, self.name)
-        self.child_model.connect_controller(self.controller_model, global_step = self.get_global_step())
+
+        '''images, labels = cifar10_input.read_data(self.base_dir + "/data/cifar10/")
+        self.child_model = GeneralChild(
+            images,
+            labels,
+            use_aux_heads=False,
+            cutout_size=16,
+            whole_channels=True,
+            num_layers=12,
+            #num_cells=FLAGS.child_num_cells,
+            #num_branches=FLAGS.child_num_branches,
+            fixed_arc=None,
+            out_filters_scale=1,
+            out_filters=36,
+            keep_prob=0.9,
+            drop_path_keep_prob=0.6,
+            num_epochs=310,
+            l2_reg=0.00025,
+            data_format="NHWC",
+            batch_size=32,
+            clip_mode="norm",
+            grad_bound=5.0,
+            lr_init=0.1,
+            lr_dec_every=100,
+            lr_dec_rate=0.1,
+            lr_cosine=True,
+            lr_max=0.05,
+            lr_min=0.0005,
+            lr_T_0=10,
+            lr_T_mul=2,
+            optim_algo="momentum",
+            sync_replicas=False,
+            num_aggregate=1,
+            num_replicas=1,
+          )'''
+
+        self.child_model = ChildModel(self.base_dir, self.name, self.FLAGS.controller_sync_replicas)
+        
+        self.child_model.connect_controller(self.controller_model)
         self.controller_model.build_trainer(self.child_model)
 
-    def get_global_step(self):
+    '''def get_global_step(self):
         train_dir = self.base_dir + "/results/"
         ckpt = tf.train.get_checkpoint_state(train_dir)
         global_step_init = -1
@@ -137,34 +180,42 @@ class Generate(Task):
         else:
             global_step = tf.contrib.framework.get_or_create_global_step()
 
-        return global_step
+        return global_step'''
 
 
     def generate(self):
         # Partition training set into validation and train
         # Write save and load interface for models from the encoding defined
-        init_op = tf.initialize_all_variables()
+        #init_op = tf.initialize_all_variables()
         controller_ops = self.controller_ops
         child_ops = self.child_ops
 
         num_iters = 1024
 
-        with tf.train.MonitoredTrainingSession(
-            checkpoint_dir="./results/",
-            ) as sess:
-            sess.run(init_op)
+        hooks = []
+        #sync_replicas_hook = controller_ops["optimizer"].make_session_run_hook(True)
+        #hooks.append(sync_replicas_hook)
+
+
+        #with tf.train.MonitoredTrainingSession(
+        #    checkpoint_dir="./results/",
+        #    ) as sess:
+        with tf.train.SingularMonitoredSession(hooks=hooks) as sess:
+            #sess.run(init_op)
             for i in range(num_iters):
                 run_ops = [
-                    child_ops["train_op"],
                     child_ops["loss"],
-                    child_ops["acc"],
-                    child_ops["child_step"]
+                    child_ops["lr"],
+                    child_ops["grad_norm"],
+                    child_ops["train_acc"],
+                    child_ops["train_op"],
                 ]
-                for j in range(10001):
-                    _, loss, acc, step = sess.run(run_ops)
+                for j in range(1350):
+                    loss, _, _, acc, _ = sess.run(run_ops)
+                    step = sess.run(child_ops["global_step"])
                     if j % 200 == 0:
-                        print("loss at step {} is {} with accuracy {}".format(step, loss, acc))
-                acc = sess.run(child_ops["acc"])
+                        print("loss at step {} is {:<6.4f} with accuracy {}".format(step, loss, acc))
+                acc = sess.run(child_ops["train_acc"])
                 print("Training for round {} completed. Acc for the model is {}".format(i, acc))
                 avg_val_acc = 0
                 for ct_step in range(self.FLAGS.controller_train_steps * self.FLAGS.controller_num_aggregate):
@@ -182,8 +233,8 @@ class Generate(Task):
                     avg_val_acc += val_acc
                     #print("step number {}, Controller loss = {}, validation acc = {}".format(ct_step, loss, val_acc))
                     controller_step = sess.run(controller_ops["train_step"])
-                    if ct_step % 50 == 0:
-                        print("Step number {}".format(controller_step))
+                    #if ct_step % 50 == 0:
+                    #    print("Step number {}".format(controller_step))
                 print("Average accuracy in round {} is {}".format(i, avg_val_acc / (self.FLAGS.controller_train_steps * self.FLAGS.controller_num_aggregate)))
                 #ops["eval_func"](sess, "test")
 
@@ -195,5 +246,7 @@ if __name__ == '__main__':
     base_dir = args.base_dir
     config = args.config
     task = args.task
-    g = Generate(base_dir, config, task)
-    g.run()
+    g = tf.Graph()
+    with g.as_default():
+        g = Generate(base_dir, config, task)
+        g.run()

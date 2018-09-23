@@ -6,7 +6,7 @@ def get_init_cell(inputs, is_training=False):
     #TODO: Load this from JSON
     arch = {
     "Layer0": {"Branch0": {"block": "cutout", "size": 16}},
-    "Layer1": {"Branch0": {"block": "conv2d", "kernel_size": [3, 3], "outputs": 112}}
+    "Layer1": {"Branch0": {"block": "conv2d", "kernel_size": [3, 3], "outputs": 36}}
     }
     cell = init_block.cell(inputs, arch, is_training)
     return cell
