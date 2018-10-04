@@ -25,12 +25,10 @@ class CellEnvelope(Cell):
             cellidx,
             channelwidth,
             net,
-            network,
             filters,
             log_stats,
             outputs):
         self.cellidx = cellidx
-        self.network = network
         self.log_stats = log_stats
         self.cellname = "Envelope"
         self.numbranches = 4
@@ -56,7 +54,6 @@ class CellEnvelope(Cell):
         """
         dropout_keep_prob = 0.8
         nscope = 'Cell_' + self.cellname + '_' + str(self.cellidx)
-        end_points = {}
 
         # Scope convention:
         # Celltype_Cellidx/Branch_Branchidx/BLocktype_BlockIdx
@@ -111,7 +108,7 @@ class CellEnvelope(Cell):
                 nets.append(net)
             net = tf.concat(axis=3, values=nets)
         #print(nscope, net, [net.get_shape().as_list()])
-        return net, end_points
+        return net
 
     def init_stats(self):
         size = [

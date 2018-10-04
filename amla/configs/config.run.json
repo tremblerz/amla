@@ -14,6 +14,12 @@
         "image_size" : 32,
         "log_stats": true
 },
+"child_training": {
+    "optimizer": {"type": "momentum", "momentum": 0.9},
+    "lr": {"type":"exponential_decay", "initial":0.040},
+    "gradient_clipping": {"type": "norm", "value":5.0},
+    "regularization": {"type": "l2", "value": 3e-4}
+},
 "init_cell": {
     "Layer0": {"Branch0": {"block": "conv2d", "kernel_size": [1, 1], "outputs": 128}},
     "Layer2": {"Branch0": {"block": "lrn" }}
@@ -25,7 +31,9 @@
     "Layer3": {"Branch0": {"block": "fc-final", "inputs": 192, "outputs": 10}}
 },
 "arch":
-[
+{
+    "type":"macro",
+    "network":[
     {
         "filters": {
             "Branch2": "3x3"
@@ -101,5 +109,6 @@
         "outputs": 1024
     }
 ]
+}
 
 }

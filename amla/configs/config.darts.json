@@ -1,0 +1,95 @@
+{
+"parameters": {
+        "arch_name":"darts",
+        "mode":"train",
+        "algorithm": "deterministic",
+        "gpus":"[]",
+        "steps" : 360000,
+        "eval_interval" : 5000,
+        "batch_size" : 96,
+        "dataset":"cifar10",
+        "data_dir":"/data/",
+        "train_dir":"/train/",
+        "iterations" : 5,
+        "image_size" : 40,
+        "log_stats": false
+},
+"child_training": {
+    "optimizer": {"type": "momentum", "momentum": 0.9},
+    "lr": {"type":"cosine_decay", "max": 0.025, "min":0.001, "T_mul": 2, "T_0": 600},
+    "gradient_clipping": {"type": "norm", "value":5.0},
+    "regularization": {"type": "l2", "value": 3e-4}
+},
+"init_cell": {
+    "Layer0": {"Branch0": {"block": "cutout", "size": 16}},
+    "Layer1": {"Branch0": {"block": "conv2d", "kernel_size": [1, 1], "outputs": 36}}
+},
+"classification_cell": {
+    "Layer0": {"Branch0": {"block": "reduce_mean", "size": [1, 2]}},
+    "Layer1": {"Branch0": {"block": "flatten", "size": [3, 3]}},
+    "Layer2": {"Branch0": {"block": "dropout", "keep_prob": 0.7}},
+    "Layer3": {"Branch0": {"block": "fc-final", "inputs": 192, "outputs": 10}}
+},
+"arch": {"type": "micro",
+    "normal_cell":{
+         "node1": -1,
+         "node2": 0,
+
+         "node3": {"node":{"type":"3x3sep"}, "input":["node2"]},
+         "node4": {"node":{"type":"3x3sep"}, "input":["node2"]},
+         "node5": {"node":{"type":"3x3sep"}, "input":["node2"]},
+
+         "node6": {"node":{"type":"3x3sep"}, "input":["node1"]},
+         "node7": {"node":{"type":"3x3sep"}, "input":["node1"]},
+
+         "node8": {"node":{"type":"concat"}, "input":["node3", "node1"]},
+         "node9": {"node":{"type":"concat"}, "input":["node4", "node1"]},
+         "node10": {"node":{"type":"concat"}, "input":["node5", "node6"]},
+
+         "node11": {"node":{"type":"concat"}, "input":["node7", "node10"]},
+
+         "node12": {"node":{"type":"concat"}, "input":["node8", "node9", "node10", "node11"]}
+    },
+    "reduction_cell":{
+         "node1": -1,
+         "node2": 0,
+
+         "node3": {"node":{"type": "3x3maxpool", "stride": 2}, "input":["node2"]},
+         "node4": {"node":{"type": "3x3maxpool", "stride": 2}, "input":["node2"]},
+         "node5": {"node":{"type": "3x3maxpool", "stride": 2}, "input":["node2"]},
+         "node6": {"node":{"type": "3x3avgpool", "stride": 2}, "input":["node2"]},
+
+         "node7": {"node": {"type": "3x3maxpool", "stride": 2}, "input":["node1"]},
+
+         "node8": {"node":{"type": "concat"}, "input":["node5", "node7"]},
+
+         "node9": {"node":{"type": "concat"}, "input":["node3", "node8"]},
+         "node10": {"node":{"type": "concat"}, "input":["node4", "node6"]},
+         "node11": {"node":{"type": "concat"}, "input":["node7", "node8"]},
+
+         "node12": {"node":{"type": "concat"}, "input":["node8", "node9", "node10", "node11"]}
+    },
+    "network":[
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "reduction_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "reduction_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell",
+        "normal_cell"
+    ]
+    }
+}
