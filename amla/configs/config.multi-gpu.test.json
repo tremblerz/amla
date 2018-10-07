@@ -1,0 +1,114 @@
+{
+"parameters": {
+        "arch_name":"nac-run-test",
+        "mode":"train",
+        "algorithm": "deterministic",
+        "gpus":[0,1],
+        "gpu_usage":0.5,
+        "steps" : 100,
+        "eval_interval" : 20,
+        "batch_size" : 50,
+        "dataset":"cifar10",
+        "data_dir":"/data/",
+        "train_dir":"/train/",
+        "iterations" : 5,
+        "image_size" : 40,
+        "log_stats": false
+},
+"child_training": {
+    "optimizer": {"type": "momentum", "momentum": 0.9},
+    "lr": {"type":"exponential_decay", "initial":0.040},
+    "gradient_clipping": {"type": "norm", "value":5.0},
+    "regularization": {"type": "l2", "value": 3e-4}
+},
+"init_cell": {
+    "Layer0": {"Branch0": {"block": "cutout", "size": 16}},
+    "Layer1": {"Branch0": {"block": "conv2d", "kernel_size": [1, 1], "outputs": 128}}
+},
+"classification_cell": {
+    "Layer0": {"Branch0": {"block": "reduce_mean", "size": [1, 2]}},
+    "Layer1": {"Branch0": {"block": "flatten", "size": [3, 3]}},
+    "Layer2": {"Branch0": {"block": "dropout", "keep_prob": 0.7}},
+    "Layer3": {"Branch0": {"block": "fc-final", "inputs": 192, "outputs": 10}}
+},
+"arch":{
+    "type":"macro",
+    "network":[
+    {
+        "filters": {
+            "Branch2": "3x3"
+        },
+        "outputs": 128
+    },
+    {
+        "filters": {
+            "Branch1": "1x1"
+        },
+        "outputs": 128
+    },
+    {
+        "filters": {
+            "Branch1": "1x1"
+        },
+        "outputs": 128
+    },
+    {
+        "widener": {}
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch2": "3x3",
+            "Branch6": "7x7sep"
+        },
+        "outputs": 256
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch2": "3x3"
+        },
+        "outputs": 256
+    },
+    {
+        "widener": {}
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch4": "5x5"
+        },
+        "outputs": 512
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch2": "3x3",
+            "Branch4": "5x5"
+        },
+        "outputs": 512
+    },
+    {
+        "widener": {}
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch4": "5x5",
+            "Branch5": "5x5sep",
+            "Branch6": "7x7sep"
+        },
+        "outputs": 1024
+    },
+    {
+        "filters": {
+            "Branch1": "1x1",
+            "Branch2": "3x3",
+            "Branch4": "5x5"
+        },
+        "outputs": 1024
+    }
+    ]
+}
+
+}

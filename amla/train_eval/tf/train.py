@@ -45,6 +45,43 @@ global_batch_size = 128
 global_log_frequency = 10
 
 
+class _LoggerHook(tf.train.SessionRunHook):
+    """Logs loss and runtime."""
+
+    def __init__(self, global_step_init, loss):
+        self.global_step_init = global_step_init
+        self.loss = loss
+
+    def begin(self):
+        self._step = self.global_step_init
+        self._start_time = time.time()
+
+    def before_run(self, run_context):
+        self._step += 1
+        # Asks for loss value.
+        return tf.train.SessionRunArgs(self.loss)
+
+    def after_run(self, run_context, run_values):
+        if self._step % global_log_frequency == 0:
+            current_time = time.time()
+            duration = current_time - self._start_time
+            self._start_time = current_time
+
+            loss_value = run_values.results
+            examples_per_sec = global_log_frequency * global_batch_size / duration
+            sec_per_batch = float(duration / global_log_frequency)
+
+            format_str = (
+                '%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
+                'sec/batch)')
+            print(
+                format_str %
+                (datetime.now(),
+                 self._step,
+                 loss_value,
+                 examples_per_sec,
+                 sec_per_batch))
+
 class Train(Task):
     """Trainingtask
     """
@@ -104,6 +141,9 @@ class Train(Task):
         #self.data_dir = self.base_dir + "/" + \
         #    self.task_config["parameters"]["data_dir"] + '/' + str(self.iteration)+"/train"
         self.gpus = self.task_config["parameters"]["gpus"]
+        gpu_fraction = self.task_config["parameters"].get("gpu_usage", 1.0)
+        self.gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction)
+
         self.arch = self.task_config["arch"]
         global_batch_size = self.batch_size
         self.train_dir = self.base_dir + "/results/" + \
@@ -114,12 +154,8 @@ class Train(Task):
 #        if self.count_params:
 #           self.train(5, redirect='>')
 #        return
-
     def train(self, network):
-        """Train CIFAR-10 for a number of steps."""
-
         with tf.Graph().as_default():
-
             ckpt = tf.train.get_checkpoint_state(self.train_dir)
             global_step_init = -1
             if ckpt and ckpt.model_checkpoint_path:
@@ -133,14 +169,12 @@ class Train(Task):
             else:
                 global_step = tf.contrib.framework.get_or_create_global_step()
 
-            # Get images and labels for CIFAR-10.
-            # Force input pipeline to CPU:0 to avoid operations sometimes ending up on
-            # GPU and resulting in a slow down.
-            with tf.device('/cpu:0'):
-                images, labels = network.distorted_inputs()
+            images, labels = network.distorted_inputs()
+            if self.gpus:
+                batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
+                        [images, labels], capacity=2 * len(self.gpus))
+                tower_grads = []
 
-            # Build a Graph that computes the logits predictions from the
-            # inference model.
             arch = self.arch
             arch_name = self.arch_name
             init_cell = self.init_cell
@@ -148,55 +182,7 @@ class Train(Task):
             log_stats = self.log_stats
             scope = "Nacnet"
             is_training = True
-            logits = network.inference(images,
-                                       arch,
-                                       arch_name,
-                                       init_cell,
-                                       classification_cell,
-                                       log_stats,
-                                       is_training,
-                                       scope)
 
-            # Calculate loss.
-            loss = network.loss(logits, labels)
-            # Build a Graph that trains the model with one batch of examples and
-            # updates the model parameters.
-            train_op = network.train(loss, global_step, self.child_training)
-
-            class _LoggerHook(tf.train.SessionRunHook):
-                """Logs loss and runtime."""
-
-                def begin(self):
-                    self._step = global_step_init
-                    self._start_time = time.time()
-
-                def before_run(self, run_context):
-                    self._step += 1
-                    # Asks for loss value.
-                    return tf.train.SessionRunArgs(loss)
-
-                def after_run(self, run_context, run_values):
-                    if self._step % global_log_frequency == 0:
-                        current_time = time.time()
-                        duration = current_time - self._start_time
-                        self._start_time = current_time
-
-                        loss_value = run_values.results
-                        examples_per_sec = global_log_frequency * global_batch_size / duration
-                        sec_per_batch = float(duration / global_log_frequency)
-
-                        format_str = (
-                            '%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
-                            'sec/batch)')
-                        print(
-                            format_str %
-                            (datetime.now(),
-                             self._step,
-                             loss_value,
-                             examples_per_sec,
-                             sec_per_batch))
-
-            saver = tf.train.Saver()
             if self.count_params:
                 # For counting parameters
                 param_stats = tf.profiler.profile(
@@ -211,176 +197,90 @@ class Train(Task):
                     tf.get_default_graph(),
                     options=tf.profiler.ProfileOptionBuilder() .with_max_depth(1) .select(
                         ['float_ops']).build())
+                print(param_stats)
+                print(flop_stats)
+                exit()
 
+            if self.gpus:
+                # Multi-gpu setting
+                learning_rate = network.get_learning_rate(global_step, self.child_training)
+                tf.summary.scalar('learning_rate', learning_rate)
+                opt = network.get_opt(learning_rate, self.child_training)
+                with tf.variable_scope(tf.get_variable_scope()):
+                    for i in self.gpus:
+                        with tf.device('/gpu:%d' % i):
+                            with tf.name_scope('%s_%d' % ('tower', i)) as scope:
+                                # Dequeues one batch for the GPU
+                                image_batch, label_batch = batch_queue.dequeue()
+                                logits = network.inference(image_batch,
+                                                           arch,
+                                                           arch_name,
+                                                           init_cell,
+                                                           classification_cell,
+                                                           log_stats,
+                                                           is_training,
+                                                           scope)
+                                # Calculate the loss for one tower of the CIFAR model. This function
+                                # constructs the entire CIFAR model but shares the variables across
+                                # all towers.
+                                loss = network.tower_loss(scope, logits, label_batch)
+                                loss = network.get_regularization_loss(loss, self.child_training)
+                                tf.get_variable_scope().reuse_variables()
+                                # Retain the summaries from the final tower. TODO:
+                                # not a nice way to use the last iteration of the
+                                # loop
+                                summaries = tf.get_collection(
+                                    tf.GraphKeys.SUMMARIES, scope)
+                                grads = opt.compute_gradients(loss)
+                                grads = network.clip_gradients(grads, self.child_training)
+
+                                tower_grads.append(grads)
+                grads = network.average_gradients(tower_grads)
+                for grad, var in grads:
+                    if grad is not None:
+                        summaries.append(
+                            tf.summary.histogram(
+                                var.op.name + '/gradients', grad))
+        
+                apply_gradient_op = opt.apply_gradients(
+                    grads, global_step=global_step)
+
+                variable_averages = tf.train.ExponentialMovingAverage(
+                    net.MOVING_AVERAGE_DECAY, global_step)
+                variables_averages_op = variable_averages.apply(
+                    tf.trainable_variables())
+
+                train_op = tf.group(apply_gradient_op, variables_averages_op)
             else:
-                with tf.train.MonitoredTrainingSession(
-                    checkpoint_dir=self.train_dir,
-                    hooks=[tf.train.StopAtStepHook(last_step=self.max_steps),
-                           tf.train.NanTensorHook(loss),
-                           _LoggerHook()],
-                    save_checkpoint_secs=300,
-                    save_summaries_steps=100,
-                    config=tf.ConfigProto(
-                        log_device_placement=self.log_device_placement)) as mon_sess:
-
-                    ckpt = tf.train.get_checkpoint_state(self.train_dir)
-                    if ckpt and ckpt.model_checkpoint_path:
-                        print("Restoring existing model")
-                        saver.restore(mon_sess, ckpt.model_checkpoint_path)
-
-                    while not mon_sess.should_stop():
-                        mon_sess.run(train_op)
-
-    def multi_gpu_train(self, network):
-        """Train CIFAR-10 for a number of steps."""
-        with tf.Graph().as_default():
-            ckpt = tf.train.get_checkpoint_state(self.train_dir)
-            global_step_init = -1
-            if ckpt and ckpt.model_checkpoint_path:
-                global_step_init = int(
-                    ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
-                global_step = tf.Variable(
-                    global_step_init,
-                    name='global_step',
-                    dtype=tf.int64,
-                    trainable=False)
-            else:
-                global_step = tf.contrib.framework.get_or_create_global_step()
-
-            # Calculate the learning rate schedule.
-            num_batches_per_epoch = (
-                net.NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN /
-                self.batch_size)
-            decay_steps = int(num_batches_per_epoch * net.NUM_EPOCHS_PER_DECAY)
-            learning_rate = tf.train.exponential_decay(
-                net.INITIAL_LEARNING_RATE,
-                global_step,
-                decay_steps,
-                net.LEARNING_RATE_DECAY_FACTOR,
-                staircase=True)
-            opt = tf.train.GradientDescentOptimizer(learning_rate)
-            # Get images and labels for CIFAR-10.
-            # Force input pipeline to CPU:0 to avoid operations sometimes ending up on
-            # GPU and resulting in a slow down.
-            with tf.device('/cpu:0'):
-                images, labels = network.distorted_inputs()
-                batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
-                    [images, labels], capacity=2 * len(self.gpus))
-
-            # Build a Graph that computes the logits predictions from the
-            # inference model.
-            arch = self.arch
-            arch_name = self.arch_name
-            init_cell = self.init_cell
-            classification_cell = self.classification_cell
-            log_stats = self.log_stats
-
-            scope = "Nacnet"
-            is_training = True
-            tower_grads = []
-            with tf.variable_scope(tf.get_variable_scope()):
-                for i in self.gpus:
-                    with tf.device('/gpu:%d' % i):
-                        with tf.name_scope('%s_%d' % ('tower', i)) as scope:
-                            # Dequeues one batch for the GPU
-                            image_batch, label_batch = batch_queue.dequeue()
-                            logits = network.inference(image_batch,
-                                                       arch,
-                                                       arch_name,
-                                                       init_cell,
-                                                       classification_cell,
-                                                       log_stats,
-                                                       is_training,
-                                                       scope)
-                            # Calculate the loss for one tower of the CIFAR model. This function
-                            # constructs the entire CIFAR model but shares the variables across
-                            # all towers.
-                            loss = network.tower_loss(scope, logits, label_batch)
-                            tf.get_variable_scope().reuse_variables()
-                            # Retain the summaries from the final tower. TODO:
-                            # not a nice way to use the last iteration of the
-                            # loop
-                            summaries = tf.get_collection(
-                                tf.GraphKeys.SUMMARIES, scope)
-                            grads = opt.compute_gradients(loss)
-                            tower_grads.append(grads)
-
-            grads = network.average_gradients(tower_grads)
-
-            summaries.append(tf.summary.scalar('learning_rate', learning_rate))
-
-            for grad, var in grads:
-                if grad is not None:
-                    summaries.append(
-                        tf.summary.histogram(
-                            var.op.name + '/gradients', grad))
-
-            apply_gradient_op = opt.apply_gradients(
-                grads, global_step=global_step)
-
-            # Track the moving averages of all trainable variables.
-            variable_averages = tf.train.ExponentialMovingAverage(
-                net.MOVING_AVERAGE_DECAY, global_step)
-            variables_averages_op = variable_averages.apply(
-                tf.trainable_variables())
-
-            train_op = tf.group(apply_gradient_op, variables_averages_op)
-
-            class _LoggerHook(tf.train.SessionRunHook):
-                """Logs loss and runtime."""
-
-                def begin(self):
-                    self.log_frequency = global_log_frequency
-                    self.batch_size = global_batch_size
-                    self._step = global_step_init
-                    self._start_time = time.time()
-
-                def before_run(self, run_context):
-                    self._step += 1
-                    # Asks for loss value.
-                    return tf.train.SessionRunArgs(loss)
-
-                def after_run(self, run_context, run_values):
-                    if self._step % self.log_frequency == 0:
-                        current_time = time.time()
-                        duration = current_time - self._start_time
-                        self._start_time = current_time
-
-                        loss_value = run_values.results
-                        examples_per_sec = self.log_frequency * self.batch_size / duration
-                        sec_per_batch = float(duration / self.log_frequency)
-
-                        format_str = (
-                            '%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
-                            'sec/batch)')
-                        print(
-                            format_str %
-                            (datetime.now(),
-                             self._step,
-                             loss_value,
-                             examples_per_sec,
-                             sec_per_batch))
+                logits = network.inference(images,
+                                       arch,
+                                       arch_name,
+                                       init_cell,
+                                       classification_cell,
+                                       log_stats,
+                                       is_training,
+                                       scope)
+                loss = network.loss(logits, labels)
+                train_op = network.get_train_op(loss, global_step, self.child_training)
 
             saver = tf.train.Saver()
-            # with tf.contrib.tfprof.ProfileContext('/tmp/profiler/' +
-            # self.arch_name) as pctx:
             with tf.train.MonitoredTrainingSession(
-                checkpoint_dir=self.train_dir,
-                hooks=[tf.train.StopAtStepHook(last_step=self.max_steps),
-                       tf.train.NanTensorHook(loss),
-                       _LoggerHook()],
-                save_checkpoint_secs=300,
-                save_summaries_steps=100,
-                config=tf.ConfigProto(
-                    log_device_placement=self.log_device_placement,
-                    allow_soft_placement=True)) as mon_sess:
+                        checkpoint_dir=self.train_dir,
+                        hooks=[tf.train.StopAtStepHook(last_step=self.max_steps),
+                               tf.train.NanTensorHook(loss),
+                               _LoggerHook(global_step_init, loss)],
+                        save_checkpoint_secs=300,
+                        save_summaries_steps=100,
+                        config=tf.ConfigProto(
+                            log_device_placement=self.log_device_placement,
+                            allow_soft_placement=True,
+                            gpu_options=self.gpu_options
+                            )) as mon_sess:
 
                 ckpt = tf.train.get_checkpoint_state(self.train_dir)
                 if ckpt and ckpt.model_checkpoint_path:
                     print("Restoring existing model")
                     saver.restore(mon_sess, ckpt.model_checkpoint_path)
-
-                tf.train.start_queue_runners(sess=mon_sess)
 
                 while not mon_sess.should_stop():
                     mon_sess.run(train_op)
@@ -390,11 +290,7 @@ class Train(Task):
         network.maybe_download_and_extract()
         if not tf.gfile.Exists(self.train_dir):
             tf.gfile.MakeDirs(self.train_dir)
-        gpus = ast.literal_eval(self.gpus)
-        if not gpus:
-            self.train(network)
-        else:
-            self.multi_gpu_train(network)
+        self.train(network)
         if self.sys_config['exec']['scheduler'] == "service":
              self.put_results()
 
