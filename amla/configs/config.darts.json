@@ -3,7 +3,8 @@
         "arch_name":"darts",
         "mode":"train",
         "algorithm": "deterministic",
-        "gpus":"[]",
+        "gpus":[0,1],
+        "gpu_usage":0.47,
         "steps" : 360000,
         "eval_interval" : 5000,
         "batch_size" : 96,
@@ -69,6 +70,10 @@
 
          "node12": {"node":{"type": "concat"}, "input":["node8", "node9", "node10", "node11"]}
     },
+    "auxiliary_classifier": {
+        "node1": 0,
+        "node2": {"node": {"type":"dense", "outputs":10}, "input":["node1"]}
+    },
     "network":[
         "normal_cell",
         "normal_cell",
@@ -76,6 +81,7 @@
         "normal_cell",
         "normal_cell",
         "normal_cell",
+        "auxiliary_classifier",
         "reduction_cell",
         "normal_cell",
         "normal_cell",
@@ -83,6 +89,7 @@
         "normal_cell",
         "normal_cell",
         "normal_cell",
+        "auxiliary_classifier",
         "reduction_cell",
         "normal_cell",
         "normal_cell",
