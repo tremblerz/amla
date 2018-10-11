@@ -236,10 +236,11 @@ class Net:
 
         # Get auxiliary loss, TODO remove hardcoded weight of 0.4
         aux_logits = tf.get_collection('auxiliary_loss')
-        for logits in aux_logits:
+        weight = 0.4
+        for num, logits in enumerate(aux_logits):
             cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                labels=labels, logits=logits)
-            cross_entropy_mean = tf.reduce_mean(cross_entropy)
+                labels=labels, logits=logits, name='aux_loss_{}'.format(num))
+            cross_entropy_mean = weight * tf.reduce_mean(cross_entropy)
             tf.add_to_collection('losses', cross_entropy_mean)
 
         # The total loss is defined as the cross entropy loss plus all of the weight
@@ -349,23 +350,21 @@ class Net:
 
         return loss_averages_op
 
-    def train(self, total_loss, global_step, child_training):
-        """Train CIFAR-10 model.
+    def get_regularization_loss(self, total_loss, child_training):
+        if child_training["regularization"]["type"] == "l2":
+            # l2-regularization
+            l2_reg = child_training["regularization"]["value"]
+            tf_variables = [var for var in tf.trainable_variables()]
+            l2_losses = []
+            for var in tf_variables:
+               l2_losses.append(tf.reduce_sum(var**2))
+            l2_loss = tf.add_n(l2_losses)
+            total_loss += l2_reg * l2_loss
+        return total_loss
 
-        Create an optimizer and apply to all trainable variables. Add moving
-        average for all trainable variables.
-
-        Args:
-            total_loss: Total loss from loss().
-            global_step: Integer Variable counting the number of training steps
-                processed.
-        Returns:
-            train_op: op for training.
-        """
+    def get_learning_rate(self, global_step, child_training):
         # Variables that affect learning rate.
         num_batches_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN // self.batch_size
-        #decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
-
         curr_epoch = global_step // num_batches_per_epoch
 
         if "lr" not in child_training.keys() or child_training["lr"]["type"] == "exponential_decay":
@@ -407,35 +406,21 @@ class Net:
             learning_rate = tf.cond(
                 tf.greater_equal(T_curr, T_i), _update, _no_update)
 
+        return learning_rate
 
-        tf.summary.scalar('learning_rate', learning_rate)
+    def get_opt(self, learning_rate, child_training):
+        if "optimizer" not in child_training.keys() or child_training["optimizer"]["type"] == "sgd":
+            opt = tf.train.GradientDescentOptimizer(learning_rate)
+        elif child_training["optimizer"]["type"] == "rms":
+            opt = tf.train.RMSPropOptimizer(lr, 0.9, 0.9, 1.0)
+        elif child_training["optimizer"]["type"] == "momentum":
+            momentum = child_training["optimizer"]["momentum"]
+            opt = tf.train.MomentumOptimizer(learning_rate,
+              momentum, use_locking=True, use_nesterov=True)
 
-        if "regularization" in child_training.keys():
-            if child_training["regularization"]["type"] == "l2":
-                # l2-regularization
-                l2_reg = child_training["regularization"]["value"]
-                tf_variables = [var for var in tf.trainable_variables()]
-                l2_losses = []
-                for var in tf_variables:
-                   l2_losses.append(tf.reduce_sum(var**2))
-                l2_loss = tf.add_n(l2_losses)
-                total_loss += l2_reg * l2_loss
+        return opt
 
-        # Generate moving averages of all losses and associated summaries.
-        loss_averages_op = self._add_loss_summaries(total_loss)
-
-        # Compute gradients.
-        with tf.control_dependencies([loss_averages_op]):
-            if "optimizer" not in child_training.keys() or child_training["optimizer"]["type"] == "sgd":
-                opt = tf.train.GradientDescentOptimizer(learning_rate)
-            elif child_training["optimizer"]["type"] == "rms":
-                opt = tf.train.RMSPropOptimizer(lr, 0.9, 0.9, 1.0)
-            elif child_training["optimizer"]["type"] == "momentum":
-                momentum = child_training["optimizer"]["momentum"]
-                opt = tf.train.MomentumOptimizer(learning_rate,
-                  momentum, use_locking=True, use_nesterov=True)
-            grads = opt.compute_gradients(total_loss)
-
+    def clip_gradients(self, grads, child_training):
         if "gradient_clipping" in child_training.keys():
             if child_training["gradient_clipping"]["type"] == "norm":
                 # Gradient clipping based on norm
@@ -449,6 +434,36 @@ class Net:
                        c_g = tf.clip_by_norm(grad, grad_bound)
                    clipped.append((c_g, var))
                 grads = clipped
+        return grads
+
+    def get_train_op(self, total_loss, global_step, child_training):
+        """Train CIFAR-10 model.
+
+        Create an optimizer and apply to all trainable variables. Add moving
+        average for all trainable variables.
+
+        Args:
+            total_loss: Total loss from loss().
+            global_step: Integer Variable counting the number of training steps
+                processed.
+        Returns:
+            train_op: op for training.
+        """
+        learning_rate = self.get_learning_rate(global_step, child_training)
+        tf.summary.scalar('learning_rate', learning_rate)
+
+        if "regularization" in child_training.keys():
+            total_loss = self.get_regularization_loss(total_loss, child_training)
+
+        # Generate moving averages of all losses and associated summaries.
+        loss_averages_op = self._add_loss_summaries(total_loss)
+
+        # Compute gradients.
+        with tf.control_dependencies([loss_averages_op]):
+            opt = self.get_opt(learning_rate, child_training)
+            grads = opt.compute_gradients(total_loss)
+
+        grads = self.clip_gradients(grads, child_training)
 
         # Apply gradients.
         apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
