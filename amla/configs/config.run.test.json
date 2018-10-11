@@ -3,7 +3,7 @@
         "arch_name":"nac-run-test",
         "mode":"train",
         "algorithm": "deterministic",
-        "gpus":"[]",
+        "gpus":[],
         "steps" : 100,
         "eval_interval" : 20,
         "batch_size" : 50,

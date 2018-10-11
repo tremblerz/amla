@@ -7,6 +7,9 @@ from stubs.tf import cell_main
 from stubs.tf import cell_dag
 
 
+def calc_l2norm(tensor):
+    return tf.norm(tensor, ord=2)
+
 def get_macro_net(inputs, log_stats=False, is_training=True,
                     scope='macro_net',
                     arch=None):
@@ -17,15 +20,25 @@ def get_macro_net(inputs, log_stats=False, is_training=True,
 
     channelwidth = int(inputs.shape[3])
     for celltype in arch:
+        #print(celltype)
         if 'filters' in celltype:
             if "inputs" in celltype.keys():
                 all_inputs = [net]
                 input_dim = net.shape
                 if celltype["inputs"] == "all":
-                    for reduced_inputs in nets[:-1]:
+                    for index, reduced_inputs in enumerate(nets[:-1]):
                         while reduced_inputs.shape[1] != input_dim[1]:
                             reduced_inputs = slim.max_pool2d(
                                 reduced_inputs, [2, 2], padding='SAME')
+                        diffrentiable_scalar = tf.get_variable(name='{}-{}'.format(index, cellnumber), shape=[1],
+                            initializer=tf.initializers.random_normal(mean=0.5, stddev=0.01))
+                        reduced_inputs = diffrentiable_scalar * reduced_inputs
+                        if log_stats:
+                            l2_norm = calc_l2norm(reduced_inputs)
+                            reduced_inputs = tf.Print(reduced_inputs, [l2_norm],
+                                message="l2norm:source-{}dest-{}:".format(index, cellnumber))
+                            reduced_inputs = tf.Print(reduced_inputs, [diffrentiable_scalar],
+                                message="scalar:source-{}dest-{}:".format(index, cellnumber))
                         all_inputs.append(reduced_inputs)
                 else:
                     for input_conn in celltype["inputs"]:
@@ -33,6 +46,15 @@ def get_macro_net(inputs, log_stats=False, is_training=True,
                         while reduced_inputs.shape[1] != input_dim[1]:
                             reduced_inputs = slim.max_pool2d(
                                 reduced_inputs, [2, 2], padding='SAME')
+                        diffrentiable_scalar = tf.get_variable(name='{}-{}'.format(input_conn, cellnumber), shape=[1],
+                            initializer=tf.initializers.random_normal(mean=0.5, stddev=0.01))
+                        reduced_inputs = diffrentiable_scalar * reduced_inputs
+                        if log_stats:
+                            l2_norm = calc_l2norm(reduced_inputs)
+                            reduced_inputs = tf.Print(reduced_inputs, [l2_norm],
+                                message="l2norm:source-{}dest-{}:".format(input_conn, cellnumber))
+                            reduced_inputs = tf.Print(reduced_inputs, [diffrentiable_scalar],
+                                message="scalar:source-{}dest-{}:".format(input_conn, cellnumber))
                         all_inputs.append(reduced_inputs)
                 net = tf.concat(axis=3, values=all_inputs)
                 num_channels = int(input_dim[3])

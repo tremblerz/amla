@@ -183,24 +183,6 @@ class Train(Task):
             scope = "Nacnet"
             is_training = True
 
-            if self.count_params:
-                # For counting parameters
-                param_stats = tf.profiler.profile(
-                    tf.get_default_graph(),
-                    options=tf.profiler.ProfileOptionBuilder()
-                    .with_max_depth(2)
-                    .with_accounted_types(['_trainable_variables'])
-                    .select(['params'])
-                    .build())
-                # For counting flops
-                flop_stats = tf.profiler.profile(
-                    tf.get_default_graph(),
-                    options=tf.profiler.ProfileOptionBuilder() .with_max_depth(1) .select(
-                        ['float_ops']).build())
-                print(param_stats)
-                print(flop_stats)
-                exit()
-
             if self.gpus:
                 # Multi-gpu setting
                 learning_rate = network.get_learning_rate(global_step, self.child_training)
@@ -262,6 +244,24 @@ class Train(Task):
                                        scope)
                 loss = network.loss(logits, labels)
                 train_op = network.get_train_op(loss, global_step, self.child_training)
+
+            if self.count_params:
+                # For counting parameters
+                param_stats = tf.profiler.profile(
+                    tf.get_default_graph(),
+                    options=tf.profiler.ProfileOptionBuilder()
+                    .with_max_depth(2)
+                    .with_accounted_types(['_trainable_variables'])
+                    .select(['params'])
+                    .build())
+                # For counting flops
+                flop_stats = tf.profiler.profile(
+                    tf.get_default_graph(),
+                    options=tf.profiler.ProfileOptionBuilder() .with_max_depth(1) .select(
+                        ['float_ops']).build())
+                print(param_stats)
+                print(flop_stats)
+                exit()
 
             saver = tf.train.Saver()
             with tf.train.MonitoredTrainingSession(
