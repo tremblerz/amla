@@ -85,18 +85,18 @@ def get_arch_from_dag(inputs, arch, is_training):
                                             kernel_size, strides=stride, padding=padding,
                                             activation=activation)'''
                                     net = slim.separable_conv2d(input_node, conv_filters,
-                                            kernel_size, 1, activation_fn=None,
+                                            kernel_size, 1, normalizer_fn=slim.batch_norm,
                                             padding=padding)
                                 else:
                                     '''net = tf.layers.conv2d(input_node, conv_filters,
                                             kernel_size, strides=stride, padding=padding,
                                             activation=activation)'''
                                     net = slim.conv2d(input_node, conv_filters,
-                                            kernel_size, activation_fn=None,
+                                            kernel_size, normalizer_fn=slim.batch_norm,
                                             stride=stride, padding=padding)
                                 # Apply RELU-Dropout-Conv-BN, TODO: parameterize this in json
-                                net = slim.batch_norm(net, is_training=is_training)
-                                net = tf.nn.relu(net)
+                                #net = slim.batch_norm(net, is_training=is_training)
+                                #net = tf.nn.relu(net)
                                 net = slim.dropout(net, keep_prob=0.8, is_training=is_training)
                                 subgraph[node] = net
                     else:

@@ -158,7 +158,7 @@ class Train(Task):
                                        scope)
 
             # Calculate loss.
-            loss = network.loss(logits, labels)
+            loss = network.loss(logits, labels, self.child_training)
             # Build a Graph that trains the model with one batch of examples and
             # updates the model parameters.
             train_op = network.train(loss, global_step, self.child_training)

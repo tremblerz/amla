@@ -159,7 +159,7 @@ class Net:
             images, labels = cifar10_input.distorted_inputs(
                 data_dir=data_dir, batch_size=self.batch_size, image_size=self.image_size)
         elif self.dataset == 'imagenet':
-            images, labels = imagenet_input.distorted_inputs()
+            images, labels = imagenet_input.distorted_inputs(batch_size=self.batch_size, image_size=self.image_size, data_dir=self.data_dir)
         if self.use_fp16:
             images = tf.cast(images, tf.float16)
             labels = tf.cast(labels, tf.float16)
@@ -186,9 +186,9 @@ class Net:
                 eval_data=eval_data, data_dir=data_dir, batch_size=self.batch_size, image_size=self.image_size)
         elif self.dataset == 'imagenet':
             data_dir = self.data_dir
-            if self.dataset_split_name == "test":
-                self.dataset_split_name = "validation"
-            images, labels = imagenet_input.inputs()
+            #if self.dataset_split_name == "test":
+            self.dataset_split_name = "validation"
+            images, labels = imagenet_input.inputs(batch_size=self.batch_size, image_size=self.image_size, data_dir=self.data_dir)
         if self.use_fp16:
             images = tf.cast(images, tf.float16)
             labels = tf.cast(labels, tf.float16)
@@ -214,7 +214,7 @@ class Net:
             scope)
         return softmax_linear
 
-    def loss(self, logits, labels):
+    def loss(self, logits, labels, child_training):
         """Add L2Loss to all the trainable variables.
 
         Add summary for "Loss" and "Loss/avg".
@@ -227,8 +227,15 @@ class Net:
             Loss tensor of type float.
         """
         # Calculate the average cross entropy loss across the batch.
-        labels = tf.cast(labels, tf.int64)
-        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        label_smoothing = child_training.get("label_smoothing", None)
+        if label_smoothing:
+            epsilon = child_training["label_smoothing"]["value"]
+            one_hot_labels = tf.one_hot(labels, depth=logits.get_shape()[1].value)
+            cross_entropy = tf.losses.softmax_cross_entropy(
+                             one_hot_labels, logits, label_smoothing=epsilon) 
+        else:
+            labels = tf.cast(labels, tf.int64)
+            cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
             labels=labels, logits=logits, name='cross_entropy_per_example')
         cross_entropy_mean = tf.reduce_mean(
             cross_entropy, name='cross_entropy')
