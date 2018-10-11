@@ -73,7 +73,7 @@ tf.app.flags.DEFINE_integer(
     """comments in code for more details.""")
 
 
-def inputs(dataset, batch_size=None, num_preprocess_threads=None):
+def inputs(dataset, batch_size=None, image_size=None, num_preprocess_threads=None):
     """Generate batches of ImageNet images for evaluation.
 
     Use this function as the inputs for evaluating a network.
@@ -93,20 +93,21 @@ def inputs(dataset, batch_size=None, num_preprocess_threads=None):
       labels: 1-D integer Tensor of [FLAGS.batch_size].
     """
     if not batch_size:
-        batch_size = FLAGS.batch_size
+        print("Batch size should be provided")
+        exit()
 
     # Force all input processing onto CPU in order to reserve the GPU for
     # the forward inference and back-propagation.
     with tf.device('/cpu:0'):
         images, labels = batch_inputs(
-            dataset, batch_size, train=False,
+            dataset, batch_size, image_size, train=False,
             num_preprocess_threads=num_preprocess_threads,
             num_readers=1)
 
     return images, labels
 
 
-def distorted_inputs(dataset, batch_size=None, num_preprocess_threads=None):
+def distorted_inputs(dataset, batch_size=None, image_size=None, num_preprocess_threads=None):
     """Generate batches of distorted versions of ImageNet images.
 
     Use this function as the inputs for training a network.
@@ -127,13 +128,14 @@ def distorted_inputs(dataset, batch_size=None, num_preprocess_threads=None):
       labels: 1-D integer Tensor of [batch_size].
     """
     if not batch_size:
-        batch_size = FLAGS.batch_size
+        print("Batch size should be provided")
+        exit()
 
     # Force all input processing onto CPU in order to reserve the GPU for
     # the forward inference and back-propagation.
     with tf.device('/cpu:0'):
         images, labels = batch_inputs(
-            dataset, batch_size, train=True,
+            dataset, batch_size, image_size, train=True,
             num_preprocess_threads=num_preprocess_threads,
             num_readers=FLAGS.num_readers)
     return images, labels
@@ -303,7 +305,7 @@ def eval_image(image, height, width, scope=None):
         return image
 
 
-def image_preprocessing(image_buffer, bbox, train, thread_id=0):
+def image_preprocessing(image_buffer, image_size, bbox, train, thread_id=0):
     """Decode and preprocess one image for evaluation or training.
 
     Args:
@@ -324,8 +326,8 @@ def image_preprocessing(image_buffer, bbox, train, thread_id=0):
         raise ValueError('Please supply a bounding box.')
 
     image = decode_jpeg(image_buffer)
-    height = FLAGS.image_size
-    width = FLAGS.image_size
+    height = image_size
+    width = image_size
 
     if train:
         image = distort_image(image, height, width, bbox, thread_id)
@@ -409,7 +411,7 @@ def parse_example_proto(example_serialized):
     return features['image/encoded'], label, bbox, features['image/class/text']
 
 
-def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
+def batch_inputs(dataset, batch_size, image_size, train, num_preprocess_threads=None,
                  num_readers=1):
     """Contruct batches of training or evaluation examples from the image dataset.
 
@@ -494,7 +496,7 @@ def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
             # metadata.
             image_buffer, label_index, bbox, _ = parse_example_proto(
                 example_serialized)
-            image = image_preprocessing(image_buffer, bbox, train, thread_id)
+            image = image_preprocessing(image_buffer, image_size, bbox, train, thread_id)
             images_and_labels.append([image, label_index])
 
         images, label_index_batch = tf.train.batch_join(
@@ -503,8 +505,8 @@ def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
             capacity=2 * num_preprocess_threads * batch_size)
 
         # Reshape images into these desired dimensions.
-        height = FLAGS.image_size
-        width = FLAGS.image_size
+        height = image_size
+        width = image_size
         depth = 3
 
         images = tf.cast(images, tf.float32)

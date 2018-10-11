@@ -99,6 +99,7 @@ def get_arch_from_dag(inputs, arch, is_training):
                                     net = slim.separable_conv2d(input_node, conv_filters,
                                             kernel_size, 1, normalizer_fn=slim.batch_norm,
                                             padding=padding)
+
                                 elif target_node["type"].endswith("dilated"):
                                     rate = target_node.get("rate", 2)
 
@@ -109,6 +110,7 @@ def get_arch_from_dag(inputs, arch, is_training):
                                     net = tf.nn.atrous_conv2d(input_node, filters, rate,
                                             padding=padding)
                                     net = tf.nn.relu(net)
+
                                 else:
                                     '''net = tf.layers.conv2d(input_node, conv_filters,
                                             kernel_size, strides=stride, padding=padding,

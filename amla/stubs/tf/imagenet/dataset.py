@@ -37,11 +37,12 @@ class Dataset(object):
     """A simple class for handling data sets."""
     __metaclass__ = ABCMeta
 
-    def __init__(self, name, subset):
+    def __init__(self, name, subset, data_dir):
         """Initialize dataset using a subset and the path to the data."""
         assert subset in self.available_subsets(), self.available_subsets()
         self.name = name
         self.subset = subset
+        self.data_dir = data_dir
 
     @abstractmethod
     def num_classes(self):
@@ -75,7 +76,7 @@ class Dataset(object):
         Raises:
           ValueError: if there are not data_files matching the subset.
         """
-        tf_record_pattern = os.path.join(FLAGS.data_dir, '%s-*' % self.subset)
+        tf_record_pattern = os.path.join(self.data_dir, '%s-*' % self.subset)
         data_files = tf.gfile.Glob(tf_record_pattern)
         if not data_files:
             print('No files found for dataset %s/%s at %s' % (self.name,

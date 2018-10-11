@@ -14,6 +14,7 @@
 """Classification cell"""
 
 import tensorflow as tf
+
 from stubs.tf.cell import Cell
 
 slim = tf.contrib.slim
@@ -40,6 +41,9 @@ class Classification(Cell):
                     block = arch[layer][branch]
                     if block["block"] == "reduce_mean":
                         net = tf.reduce_mean(net, [1, 2])
+                    elif block["block"] == "avgpool":
+                        kernel_size = block["kernel_size"]
+                        net = slim.avg_pool2d(net, kernel_size=kernel_size)
                     elif block["block"] == "flatten":
                         net = slim.flatten(net)
                     elif block["block"] == "fc":

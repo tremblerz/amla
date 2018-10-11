@@ -25,8 +25,8 @@ from stubs.tf.imagenet.dataset import Dataset
 class ImagenetData(Dataset):
     """ImageNet data set."""
 
-    def __init__(self, subset):
-        super(ImagenetData, self).__init__('ImageNet', subset)
+    def __init__(self, subset, data_dir):
+        super(ImagenetData, self).__init__('ImageNet', subset, data_dir)
 
     def num_classes(self):
         """Returns the number of classes in the data set."""

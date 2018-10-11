@@ -19,16 +19,19 @@ import stubs.tf.imagenet.image_processing as imgnet
 
 FLAGS = tf.app.flags.FLAGS
 
-def distorted_inputs():
-    dataset = ImagenetData(FLAGS.dataset_split_name)
+def distorted_inputs(batch_size, image_size, data_dir):
+    dataset = ImagenetData("train", data_dir)
     images, labels = imgnet.distorted_inputs(
         dataset,
+        batch_size=batch_size,
+        image_size=image_size,
         num_preprocess_threads=4
     )
     return images, labels
 
-
-def inputs():
-    dataset = ImagenetData(FLAGS.dataset_split_name)
-    images, labels = imgnet.inputs(dataset)
+def inputs(batch_size, image_size, data_dir):
+    dataset = ImagenetData("validation", data_dir)
+    images, labels = imgnet.inputs(dataset,
+        batch_size=batch_size,
+        image_size=image_size)
     return images, labels

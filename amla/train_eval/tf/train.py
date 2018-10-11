@@ -242,7 +242,7 @@ class Train(Task):
                                        log_stats,
                                        is_training,
                                        scope)
-                loss = network.loss(logits, labels)
+                loss = network.loss(logits, labels, self.child_training)
                 train_op = network.get_train_op(loss, global_step, self.child_training)
 
             if self.count_params:
