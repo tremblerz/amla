@@ -1,6 +1,6 @@
 {
 "parameters": {
-        "arch_name":"enas",
+        "arch_name":"enas-micro",
         "mode":"train",
         "algorithm": "deterministic",
         "gpus":"[]",
@@ -69,7 +69,7 @@
          "node14": {"node":"add", "input":["node12", "node13"]},
 
          "node15": {"node":"3x3sep", "input":["node14"]},
-         "node16": {"node":"5x5sep", "input":["node1"]}
+         "node16": {"node":"5x5sep", "input":["node1"]},
 
          "node17": {"node":"add", "input":["node15", "node16"]},
 
@@ -90,5 +90,5 @@
         "normal_cell",
         "reduction_cell"
     ]
-]
+}
 }

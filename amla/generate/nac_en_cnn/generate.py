@@ -22,6 +22,7 @@ import re
 import random
 import math
 import argparse
+from collections import Counter
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--base_dir', help='Base directory')
@@ -179,8 +180,11 @@ class Generate(Task):
         return narch
 
     def construct_envelopenet_bystages(self, samples):
+        arch = {"type":"macro","network":[]}
         lsamples = self.read(samples)
         nsamples = lsamples.split('\n')
+        # offset_count takes care of how much a present layer gets shifted after new construction
+        offset_count = [0]
         worst_case = self.worst_case
         stages = []
         stage = []
@@ -190,7 +194,7 @@ class Generate(Task):
         lidx = 1
         ssidx[0] = 1
         stagenum = 0
-        for layer in self.arch:
+        for layer in self.arch["network"]:
             if 'widener' in layer:
                 lidx += 1
                 stages.append(stage)
@@ -222,29 +226,40 @@ class Generate(Task):
                 #print("Pruning " + str(prune))
                 nstage = self.prune_filters(ssidx[stagenum], stage, prune)
                 nstage = self.add_cell(nstage)
+                offset_count += [offset_count[-1]] * len(nstage)
+                offset_count[-1] += 1
             else:
                 nstage = copy.deepcopy(stage)
+                offset_count += [offset_count[-1]] * len(nstage)
             # Do not add widener for the last stage
             self.set_outputs(nstage, stagenum)
             if stagenum != len(stages) - 1:
                 nstage = self.add_widener(nstage)
+                offset_count.append(offset_count[-1])
             #print("New stage :" + str(nstage))
             narch += (nstage)
             stagenum += 1
 
-        self.insert_skip(narch)
+        offset_count = offset_count[1:]
+        arch["network"] = narch
+        narch = self.insert_skip(arch, nsamples, offset_count, dense_connect=False)
+        #print(narch)
         #print("Old arch :" + str(self.arch))
         #print("New arch :" + str(narch))
         return narch
 
     def remove_logging(self, line):
-        line = re.sub("\d\d\d\d.*ops.cc:79\] ", "", line)
+        line = re.sub(r"\d\d\d\d.*ops.cc:79\] ", "", line)
         return line
 
-    def filter_samples(self, samples):
+    def filter_samples(self, samples, filter_string='MeanSSS'):
         #filter_string = 'Variance'
-        filter_string = 'MeanSSS'
         filtered_log = [line for line in samples if filter_string in line]
+        return filtered_log
+
+    def get_samples(self, samples, filter_string='MeanSSS'):
+        #filter_string = 'Variance'
+        filtered_log = [line for line in samples if line.startswith(filter_string)]
         return filtered_log
 
     def get_filter_sample(self, sample):
@@ -403,15 +418,65 @@ class Generate(Task):
         # {"Branch0": "3x3", "Branch1": "3x3sep", "Branch2": "5x5", "Branch3": "5x5sep"} })
         return narch
 
-    def insert_skip(self, narch):
-        if "skip" not in self.task_config:
+    def group_by_layer(self, samples):
+        stats = {}
+        for sample in samples[::-1]:
+            source_node = int(re.search(r'.*:source-(\d+)dest-(\d+).*', sample).group(1))
+            dest_node = int(re.search(r'.*:source-(\d+)dest-(\d+).*', sample).group(2))
+            if dest_node not in stats.keys():
+                stats[dest_node] = {}
+            if source_node not in stats[dest_node].keys():
+                print(sample)
+                stats[dest_node][source_node] = float(re.search(r'\[(-?\d+\.\d+)\]', sample).group(1))
+        return stats
+
+
+    def insert_skip(self, narch, nsamples=None, offset_count=None, dense_connect=False):
+        new_network = narch['network']
+        if "skip" not in self.task_config['envelopenet'] or not self.task_config['envelopenet']['skip']:
             return narch
-        if not self.task_config["skip"]:
-            return narch
-        #print(narch)
-        for layer in narch:
-            if "filters" in layer:
-                layer["inputs"] = "all"
+
+        if dense_connect == True:
+            for layer_id, layer in enumerate(narch['network']):
+                if "filters" in layer:
+                    new_network[layer_id]["inputs"] = []
+                    for connections in range(layer_id - 1, 0, -1):
+                        new_network[layer_id]["inputs"].append(connections)
+        else:
+            threshold = 0.5
+            new_connections = []
+            scalar_filtered_samples = self.get_samples(nsamples, filter_string='scalar')
+            l2norm_filtered_samples = self.get_samples(nsamples, filter_string='l2norm')
+            scalar_stats = self.group_by_layer(scalar_filtered_samples)
+            l2norm_stats = self.group_by_layer(l2norm_filtered_samples)
+            # scalar stats are being used right now
+            for layer_id, layer in enumerate(narch['network'][1:], start=1):
+                if "filters" in layer:
+                    if offset_count[layer_id] != offset_count[layer_id - 1]:
+                        # New layer has been added at this position, connect densely
+                        new_network[layer_id]["inputs"] = []
+                        for connections in range(layer_id - 1, 0, -1):
+                            new_network[layer_id]["inputs"].append(connections)
+                        new_connections.append(layer_id + 1)
+                    else:
+                        previous_layer_id = layer_id - offset_count[layer_id]
+                        if (previous_layer_id+1) in scalar_stats.keys():
+                            number_to_keep = len(scalar_stats[previous_layer_id+1]) - int(threshold * len(scalar_stats[previous_layer_id+1]))
+                            print("layer_id = {}, number_to_keep = {}, scalar_stats = {}".format(
+                                layer_id, number_to_keep, scalar_stats[previous_layer_id+1]))
+                            connections = scalar_stats[previous_layer_id+1]
+                            pruned_connections = list(zip(*Counter(connections).most_common(number_to_keep)))[0]
+
+                            updated_pruned_connections = []
+                            for connection in pruned_connections:
+                                offset = offset_count[connection - 1]
+                                while offset_count[offset + connection - 1] != offset:
+                                    offset = offset_count[offset + connection - 1]
+                                new_index = connection + offset
+                                updated_pruned_connections.append(new_index)
+                            new_network[layer_id]["inputs"] = updated_pruned_connections+ new_connections
+
+        narch['network'] = new_network
         return narch
 
     def insert_wideners(self, narch):
@@ -445,15 +510,15 @@ class Generate(Task):
         return narch
 
     def gen_randomnet(self):
-        self.arch = []
+        self.arch = {"type":"macro","network":[]}
         for stage in range(self.stages):
             starch = []
             for idx in range(int(self.layers_per_stage[stage])):
                 starch.append({"filters": {}})
             self.set_outputs(starch, stage,)
-            self.arch += starch
+            self.arch["network"] += starch
             if stage != self.stages - 1:
-                self.arch = self.add_widener(self.arch)
+                self.arch["network"] = self.add_widener(self.arch)
         #print(self.arch)
         layer = 0
         for stage in range(self.stages):
@@ -462,7 +527,7 @@ class Generate(Task):
             for idx in range(0, self.layers_per_stage[stage]):
                 block = random.randint(0, len(self.blocks) - 1)
                 blockname = self.blocks[block]
-                self.arch[layer]["filters"]["Branch0"] = blockname
+                self.arch["network"][layer]["filters"]["Branch0"] = blockname
                 layer += 1
             # Widener
             layer += 1
@@ -488,17 +553,17 @@ class Generate(Task):
 #                    str(rlayer) +
 #                    ":" +
 #                    str(layer))
-                branch = len(self.arch[alayer]["filters"].keys())
+                branch = len(self.arch["network"][alayer]["filters"].keys())
                 branchname = "Branch" + str(branch)
                 self.arch[alayer]["filters"][branchname] = blockname
             # Widener
             startlayer += (self.layers_per_stage[stage] + 1)
-        self.arch = self.insert_skip(self.arch)
+        self.arch["network"] = self.insert_skip(self.arch)
         #print(json.dumps(self.arch, indent=4, sort_keys=True))
         return self.arch
 
     def gen_envelopenet_bystages(self):
-        self.arch = []
+        self.arch = {"type":"macro","network":[]}
         #print("Stages: " + str(self.stages))
         #print("Layerperstage: " + str(self.layers_per_stage))
         for stageidx in range(int(self.stages)):
@@ -512,8 +577,8 @@ class Generate(Task):
             self.set_outputs(stage, stageidx)
             if stageidx != int(self.stages) - 1:
                 stage = self.add_widener(stage)
-            self.arch += stage
-        self.insert_skip(self.arch)
+            self.arch["network"] += stage
+        self.arch = self.insert_skip(self.arch, dense_connect=True)
         #print(json.dumps(self.arch, indent=4, sort_keys=True))
         return self.arch
 
