@@ -245,6 +245,7 @@ class Net:
         aux_logits = tf.get_collection('auxiliary_loss')
         weight = 0.4
         for num, logits in enumerate(aux_logits):
+            #print(logits)
             cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=logits, name='aux_loss_{}'.format(num))
             cross_entropy_mean = weight * tf.reduce_mean(cross_entropy)
@@ -252,9 +253,10 @@ class Net:
 
         # The total loss is defined as the cross entropy loss plus all of the weight
         # decay terms (L2 loss).
-        return tf.add_n(tf.get_collection('losses'), name='total_loss')
+        total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+        return total_loss
 
-    def tower_loss(self, scope, logits, labels):
+    def tower_loss(self, scope, logits, labels, child_training):
         """Calculate the total loss on a single tower running the CIFAR model.
             Args:
             scope: unique prefix string identifying the CIFAR tower, e.g. 'tower_0'
@@ -265,7 +267,7 @@ class Net:
         """
         # Build the portion of the Graph calculating the losses. Note that we will
         # assemble the total_loss using a custom function below.
-        _ = self.loss(logits, labels)
+        _ = self.loss(logits, labels, child_training)
 
         # Assemble all of the losses for the current tower only.
         losses = tf.get_collection('losses', scope)
@@ -369,9 +371,11 @@ class Net:
             total_loss += l2_reg * l2_loss
         return total_loss
 
-    def get_learning_rate(self, global_step, child_training):
+    def get_learning_rate(self, global_step, child_training, gpus=None):
         # Variables that affect learning rate.
         num_batches_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN // self.batch_size
+        if gpus:
+            global_step *= len(gpus)
         curr_epoch = global_step // num_batches_per_epoch
 
         if "lr" not in child_training.keys() or child_training["lr"]["type"] == "exponential_decay":
@@ -381,7 +385,7 @@ class Net:
 
             decay_steps = int(num_batches_per_epoch * epochs_per_decay)
             learning_rate = tf.train.exponential_decay(initial_lr,
-                                                       global_step,
+                                                       curr_epoch,
                                                        decay_steps,
                                                        lr_decay,
                                                        staircase=True)            
@@ -476,13 +480,13 @@ class Net:
         apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
 
         # Add histograms for trainable variables.
-        for var in tf.trainable_variables():
-            tf.summary.histogram(var.op.name, var)
+        #for var in tf.trainable_variables():
+        #    tf.summary.histogram(var.op.name, var)
 
         # Add histograms for gradients.
-        for grad, var in grads:
-            if grad is not None:
-                tf.summary.histogram(var.op.name + '/gradients', grad)
+        #for grad, var in grads:
+        #    if grad is not None:
+        #        tf.summary.histogram(var.op.name + '/gradients', grad)
 
         # Track the moving averages of all trainable variables.
         variable_averages = tf.train.ExponentialMovingAverage(

@@ -96,8 +96,16 @@ def get_macro_net(inputs, log_stats=False, is_training=True,
             print("Initial #channels={}, after skip={}".format(num_channels, int(net.shape[3])))
             net = slim.max_pool2d(net, [2,2], scope=nscope, padding='SAME')
             channelwidth *= 2
-        elif 'outputs' in celltype:
-            pass
+        elif 'auxiliary' in celltype:
+            output_units = celltype["outputs"]
+            with tf.variable_scope("aux_logits-{}".format(cellnumber)):
+                pool = tf.reduce_mean(net, axis=(1,2))
+                flatten = slim.flatten(pool)
+                fc = slim.fully_connected(flatten, output_units)
+                tf.add_to_collection("auxiliary_loss", fc)
+            continue
+        #elif 'outputs' in celltype:
+        #    pass
         else:
             print("Error: Invalid cell definition" + str(celltype))
             exit(-1)

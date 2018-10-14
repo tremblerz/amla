@@ -185,7 +185,7 @@ class Train(Task):
 
             if self.gpus:
                 # Multi-gpu setting
-                learning_rate = network.get_learning_rate(global_step, self.child_training)
+                learning_rate = network.get_learning_rate(global_step, self.child_training, self.gpus)
                 tf.summary.scalar('learning_rate', learning_rate)
                 opt = network.get_opt(learning_rate, self.child_training)
                 with tf.variable_scope(tf.get_variable_scope()):
@@ -205,7 +205,7 @@ class Train(Task):
                                 # Calculate the loss for one tower of the CIFAR model. This function
                                 # constructs the entire CIFAR model but shares the variables across
                                 # all towers.
-                                loss = network.tower_loss(scope, logits, label_batch)
+                                loss = network.tower_loss(scope, logits, label_batch, self.child_training)
                                 loss = network.get_regularization_loss(loss, self.child_training)
                                 tf.get_variable_scope().reuse_variables()
                                 # Retain the summaries from the final tower. TODO:
